@@ -1,0 +1,9 @@
+--- Starting Debug Flow ---
+Recruiter: Test Corp
+Internship: Python Developer (Created: False)
+Student: student@test.com Profile (VSPS: 0.8)
+ML Candidate: CandidateProfile(id=5, skills=['Python', 'Java'], micro_assessment=MicroAssessment(accuracy=0.8, speed_score=0.8, skip_penalty=0.0), recency_score=1.0)
+Total DB Internships: 2
+Recommendations found: 2
+ - Python Developer: Score=0.2108214616796424 (Cos=0.340473936821128, VSPS=0.72, Trust=0.8599999999999999)
+ - SDE: Score=0.0 (Cos=0.0, VSPS=0.72, Trust=0.8599999999999999)

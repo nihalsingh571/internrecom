@@ -1,0 +1,9 @@
+Django
+djangorestframework
+djoser
+psycopg2-binary
+scikit-learn
+numpy
+pandas
+django-cors-headers
+python-dotenv
