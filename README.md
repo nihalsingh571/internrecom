@@ -4,17 +4,17 @@ InternConnect is a comprehensive platform designed to bridge the gap between stu
 
 ## 📸 Screenshots
 
-| Dashboard | Job Listing |
+| Dashboard | Upload an Internship |
 |-----------|-------------|
-| ![Dashboard](<src/snap/internrecom - Google Chrome 03-02-2026 00_37_52.png>) | ![Job Listing](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_10.png>) |
+| ![Dashboard](<src/snap/internrecom - Google Chrome 03-02-2026 00_37_52.png>) | ![Upload an Internship](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_10.png>) |
 
-| Application Flow | Recommendations |
+| Verify Your Skills Before Adding | Recommendations |
 |------------------|-----------------|
-| ![Application](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_23.png>) | ![Recomendation](<src/snap/internrecom - Google Chrome 03-02-2026 00_39_16.png>) |
+| ![Verify Your Skills Before Adding](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_23.png>) | ![Recomendation](<src/snap/internrecom - Google Chrome 03-02-2026 00_39_16.png>) |
 
-| Assessment | Profile |
+| Assessment | Proctored Assessment |
 |------------|---------|
-| ![Assessment](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_38.png>) | ![Profile](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_48.png>) |
+| ![Assessment](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_38.png>) | ![Proctored Assessment](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_48.png>) |
 
 ## 🚀 Features
 
