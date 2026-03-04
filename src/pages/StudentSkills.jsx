@@ -26,6 +26,28 @@ export default function StudentSkills() {
         }
     };
 
+    const handleVerifySkill = (skillName) => {
+        // Open assessment for this specific skill
+        navigate('/student/assessment', { state: { skills: [skillName] } });
+    };
+
+    const handleDeleteSkill = async (skillName) => {
+        const updated = skills.filter(
+            (s) =>
+                !(
+                    s.status === 'pending' &&
+                    s.name.toLowerCase() === skillName.toLowerCase()
+                )
+        );
+        try {
+            await API.patch('/api/applicants/me/', { skills: updated });
+            setSkills(updated);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to delete skill');
+        }
+    };
+
     const handleAddSkill = async (e) => {
         e.preventDefault();
         if (!newSkill.trim()) return;
@@ -78,16 +100,43 @@ export default function StudentSkills() {
 
                 <div className="flex flex-wrap gap-3">
                     {skills.map((skill, idx) => (
-                        <span
+                        <div
                             key={idx}
-                            className={`px-3 py-1 rounded-full text-sm font-medium border ${skill.status === 'verified'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
+                            className="group inline-flex items-center"
                         >
-                            {skill.name}
-                            {skill.status === 'pending' && <span className="ml-1 text-xs text-amber-600 italic">(Pending)</span>}
-                        </span>
+                            <span
+                                className={`px-3 py-1 rounded-full text-sm font-medium border ${
+                                    skill.status === 'verified'
+                                        ? 'bg-green-50 text-green-700 border-green-200'
+                                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}
+                            >
+                                {skill.name}
+                                {skill.status === 'pending' && (
+                                    <span className="ml-1 text-xs text-amber-600 italic">
+                                        (Pending)
+                                    </span>
+                                )}
+                            </span>
+                            {skill.status === 'pending' && (
+                                <span className="ml-2 hidden group-hover:inline-flex items-center gap-2 text-[11px]">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleVerifySkill(skill.name)}
+                                        className="text-indigo-600 hover:underline"
+                                    >
+                                        Verify
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteSkill(skill.name)}
+                                        className="text-rose-600 hover:underline"
+                                    >
+                                        Delete
+                                    </button>
+                                </span>
+                            )}
+                        </div>
                     ))}
                     {skills.length === 0 && <p className="text-slate-500 italic">No skills added yet.</p>}
                 </div>

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '../services/api';
+import { useNotifications } from '../components/notifications/NotificationContainer';
 
 export default function Assessment() {
     const location = useLocation();
     const navigate = useNavigate();
+    const { success, error: notifyError, warning } = useNotifications();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [questions, setQuestions] = useState([]);
@@ -72,7 +74,11 @@ export default function Assessment() {
         console.warn(`Proctoring Violation: ${type} at ${timestamp}`);
         setViolationCount(prev => prev + 1);
         setProctoringLog(prev => [...prev, { type, timestamp }]);
-        alert(`Warning: ${type}! This has been recorded.`);
+        // Show a warning notification in the top-right corner
+        warning(
+            'Proctoring event detected',
+            `${type}. Your assessment session has recorded this event.`
+        );
     };
 
     const startAssessment = async () => {
@@ -137,11 +143,22 @@ export default function Assessment() {
             };
 
             const response = await API.post('/api/assessments/submit/', payload);
-            alert(`Assessment ${response.data.status}!\nScore: ${(response.data.score * 100).toFixed(1)}%\nVSPS: ${response.data.vsps.toFixed(2)}`);
+
+            const status = response.data.status;
+            const scorePct = (response.data.score * 100).toFixed(1);
+            const vspsVal = response.data.vsps.toFixed(2);
+            const baseMessage = `Score: ${scorePct}% • VSPS: ${vspsVal}`;
+
+            if (status === 'COMPLETED') {
+                success('Assessment passed', baseMessage);
+            } else {
+                notifyError('Assessment failed', response.data.message || baseMessage);
+            }
+
             navigate('/student/dashboard');
         } catch (err) {
             console.error("Submission failed", err);
-            alert("Failed to submit assessment.");
+            notifyError('Submission failed', 'We could not submit your assessment. Please try again.');
             setLoading(false);
         }
     };
