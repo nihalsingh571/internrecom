@@ -17,7 +17,6 @@ import {
   Globe,
   BadgeCheck,
 } from 'lucide-react'
-import companyIcon from '../../res/company.png'
 
 const timeAgo = (timestamp) => {
   if (!timestamp) return 'recently'
@@ -54,7 +53,7 @@ const normalizeList = (value) => {
 
 const CompanyLogo = () => (
   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 shadow-inner shadow-black/20">
-    <img src={companyIcon} alt="Company icon" className="h-9 w-9 object-contain" />
+    <Building2 size={28} className="text-white/60" />
   </div>
 )
 

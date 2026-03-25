@@ -312,7 +312,6 @@ class Command(BaseCommand):
                     "required_skills": record["skills"],
                     "work_type": record["type"],
                     "stipend": record["stipend"],
-                    "recruiter_rating": 0.8,
                 },
             )
             if created_listing:

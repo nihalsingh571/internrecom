@@ -4,17 +4,21 @@ InternConnect is a comprehensive platform designed to bridge the gap between stu
 
 ## 📸 Screenshots
 
-| Dashboard | Upload an Internship |
-|-----------|-------------|
-| ![Dashboard](<src/snap/internrecom - Google Chrome 03-02-2026 00_37_52.png>) | ![Upload an Internship](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_10.png>) |
+| Signup / Login Page | Student Dashboard |
+|---------------------|-------------------|
+| ![Signup / Login Page](src/assets/signuploginpage.jpeg) | ![Student Dashboard](src/assets/studentdashboard.jpeg) |
 
-| Verify Your Skills Before Adding | Recommendations |
-|------------------|-----------------|
-| ![Verify Your Skills Before Adding](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_23.png>) | ![Recomendation](<src/snap/internrecom - Google Chrome 03-02-2026 00_39_16.png>) |
+| Verifying Skill Assessment | Student Profile |
+|----------------------------|-----------------|
+| ![Verifying Skill Assessment](src/assets/verifyingskillassessment.jpeg) | ![Student Profile](src/assets/studentprofile.jpeg) |
 
-| Assessment | Proctored Assessment |
-|------------|---------|
-| ![Assessment](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_38.png>) | ![Proctored Assessment](<src/snap/internrecom - Google Chrome 03-02-2026 00_38_48.png>) |
+| Recruiter Dashboard | Post Intern Dashboard |
+|---------------------|-----------------------|
+| ![Recruiter Dashboard](src/assets/recruiterdashboard.jpeg) | ![Post Intern Dashboard](src/assets/postInterndashboard.jpeg) |
+
+| List of Applicants | Post Intern |
+|--------------------|-------------|
+| ![List of Applicants](src/assets/listofappliacants.jpeg) | ![Post Intern](src/assets/postIntern1.jpeg) |
 
 ## 🚀 Features
 
