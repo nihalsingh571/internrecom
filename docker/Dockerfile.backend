@@ -1,0 +1,36 @@
+# ─── Django REST Backend ──────────────────────────────────────────────────────
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install system dependencies needed for psycopg2, Pillow, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir gunicorn django-redis
+
+# Copy backend source code
+COPY backend/ .
+
+# Collect static files
+RUN python manage.py collectstatic --noinput || true
+
+EXPOSE 8000
+
+# Run with Gunicorn (production WSGI server)
+CMD ["gunicorn", "internconnect_backend.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "3", \
+     "--timeout", "120"]

@@ -1,10 +1,85 @@
 services:
-  web:
-    image: internconnect-web:local
-    container_name: internconnect-web
-    build: .
-    ports:
-      - "${PORT:-8087}:80"
+  # ── PostgreSQL Database ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: internconnect-postgres
     environment:
-      - NODE_ENV=production
-    restart: unless-stopped
+      POSTGRES_DB: internconnect_db
+      POSTGRES_USER: internconnect_user
+      POSTGRES_PASSWORD: internconnect_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U internconnect_user -d internconnect_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis Cache ────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: internconnect-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Django Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: internconnect-backend
+    env_file:
+      - backend/.env
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=internconnect_db
+      - DB_USER=internconnect_user
+      - DB_PASSWORD=internconnect_pass
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn internconnect_backend.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+
+  # ── React Frontend ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: internconnect-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  # ── Nginx Reverse Proxy ────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: internconnect-nginx
+    volumes:
+      - ./docker/nginx/nginx-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres_data:
