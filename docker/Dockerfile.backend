@@ -1,36 +1,41 @@
 # ─── Django REST Backend ──────────────────────────────────────────────────────
 FROM python:3.11-slim
 
-# Set environment variables
+# Prevent .pyc files and enable unbuffered logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-# Install system dependencies needed for psycopg2, Pillow, etc.
+# Install system dependencies for psycopg2, Pillow, python-docx
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     libjpeg-dev \
     zlib1g-dev \
+    libxml2-dev \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies first (cached layer)
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir gunicorn django-redis
+RUN pip install --upgrade pip \
+    && pip install -r requirements.txt
 
 # Copy backend source code
 COPY backend/ .
 
-# Collect static files
+# Collect static files (whitenoise will serve them)
 RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000
 
-# Run with Gunicorn (production WSGI server)
+# Run with Gunicorn — 3 workers, 120s timeout for ML/AI requests
 CMD ["gunicorn", "internconnect_backend.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "3", \
-     "--timeout", "120"]
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

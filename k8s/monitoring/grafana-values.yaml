@@ -1,0 +1,69 @@
+# Grafana Helm values — deployed as part of kube-prometheus-stack
+# Access after deploy:
+#   kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring
+#   Open: http://localhost:3000
+#   Login: admin / admin123
+
+grafana:
+  enabled: true
+
+  # Admin credentials
+  adminUser: admin
+  adminPassword: admin123
+
+  # Resource limits for Minikube
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  # Persistent storage for dashboards
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  # Pre-install useful dashboards
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: InternConnect
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # Kubernetes cluster overview (official dashboard ID: 7249)
+      kubernetes-cluster:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+      # Node exporter full (official dashboard ID: 1860)
+      node-exporter:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+      # K8s pod metrics (official dashboard ID: 6417)
+      kubernetes-pods:
+        gnetId: 6417
+        revision: 1
+        datasource: Prometheus
+
+  # Data source: auto-connect to Prometheus
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-kube-prometheus-prometheus:9090
+          isDefault: true
+          access: proxy
