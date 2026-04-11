@@ -2,6 +2,7 @@
 
 InternConnect is a comprehensive platform designed to bridge the gap between students and recruiters. It leverages machine learning to provide personalized internship recommendations based on candidate skills, assessment performance, and verification scores (VSPS).
 
+
 ## 📸 Screenshots
 
 | Signup / Login Page | Student Dashboard |
@@ -31,6 +32,7 @@ InternConnect is a comprehensive platform designed to bridge the gap between stu
 -   **Real-time Notifications**: Instant updates on application status (Planned).
 -   **Comprehensive Testing Framework**: 68 automated tests covering backend APIs, frontend components, E2E user journeys, and integration workflows.
 -   **CI/CD Pipeline**: Automated testing and deployment with GitHub Actions, coverage reporting, and security scanning.
+-   **ML Evaluation Pipeline**: A reproducible `python -m ml_engine.evaluation_pipeline` command now exports research-ready CSVs + charts to `backend/res/` for reporting noise-robustness of the VSPS × Trust model.
 
 ## 🛠️ Technology Stack
 

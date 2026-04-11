@@ -65,7 +65,17 @@ const formatRelativeTime = (value) => {
   return `${days}d ago`
 }
 
-const deriveListingStatus = (apps = []) => {
+const statusLabelMap = {
+  OPEN: 'Open',
+  REVIEWING: 'Reviewing',
+  PAUSED: 'Paused',
+  CLOSED: 'Closed',
+}
+
+const deriveListingStatus = (listing, apps = []) => {
+  if (listing?.status) {
+    return statusLabelMap[listing.status] || listing.status
+  }
   if (!apps.length) return 'Open'
   if (apps.some((app) => app.status === 'ACCEPTED')) return 'Offer sent'
   if (apps.every((app) => app.status === 'REJECTED')) return 'Closed'
@@ -97,6 +107,12 @@ export default function RecruiterDashboard() {
   const [matchFilter, setMatchFilter] = useState('Active')
   const [formLoading, setFormLoading] = useState(false)
   const [formFeedback, setFormFeedback] = useState(null)
+  const [editingListing, setEditingListing] = useState(null)
+  const [selectedListing, setSelectedListing] = useState(null)
+  const [listingModalOpen, setListingModalOpen] = useState(false)
+  const [listingStatus, setListingStatus] = useState('OPEN')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusFeedback, setStatusFeedback] = useState(null)
   const [companyEditorOpen, setCompanyEditorOpen] = useState(false)
   const [companyForm, setCompanyForm] = useState({
     company_name: '',
@@ -104,6 +120,9 @@ export default function RecruiterDashboard() {
   })
   const [companySaving, setCompanySaving] = useState(false)
   const [companyError, setCompanyError] = useState(null)
+  const [selectedCandidate, setSelectedCandidate] = useState(null)
+  const [candidateModalOpen, setCandidateModalOpen] = useState(false)
+  const [inviteFeedback, setInviteFeedback] = useState(null)
 
   const openCompanyEditor = () => {
     setCompanyForm({
@@ -170,11 +189,16 @@ export default function RecruiterDashboard() {
       setApplicants(applicantRes.data || [])
     } catch (err) {
       console.error('Failed to load recruiter dashboard', err)
-      setError('Unable to load recruiter data right now. Please retry in a moment.')
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setError('Your session has expired. Please sign in again.')
+        logout()
+      } else {
+        setError('Unable to load recruiter data right now. Please retry in a moment.')
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [logout])
 
   useEffect(() => {
     fetchRecruiterData()
@@ -376,29 +400,34 @@ export default function RecruiterDashboard() {
       const requiredSkills = form.requiredSkills
         ? form.requiredSkills.split(',').map((skill) => skill.trim()).filter(Boolean)
         : []
+      const preferredSkills = form.preferredSkills
+        ? form.preferredSkills.split(',').map((skill) => skill.trim()).filter(Boolean)
+        : []
 
-      const composedDescription = [
-        form.description,
-        form.responsibilities && `Responsibilities:\n${form.responsibilities}`,
-        form.preferredSkills && `Preferred skills: ${form.preferredSkills}`,
-        form.duration && `Duration: ${form.duration}`,
-        form.startDate && `Start date: ${form.startDate}`,
-        form.deadline && `Apply before: ${form.deadline}`,
-      ]
-        .filter(Boolean)
-        .join('\n\n')
-
-      await API.post('/api/internships/', {
+      const payload = {
         title: form.title,
-        description: composedDescription,
+        description: form.description,
         location: form.location || 'Remote',
         work_type: form.mode,
         stipend: form.stipend ? Number(form.stipend) : null,
         required_skills: requiredSkills,
-      })
+        preferred_skills: preferredSkills,
+        responsibilities: form.responsibilities || '',
+        duration: form.duration || '',
+        start_date: form.startDate || null,
+        deadline: form.deadline || null,
+      }
 
+      if (editingListing?.id) {
+        await API.patch(`/api/internships/${editingListing.id}/`, payload)
+        setFormFeedback('Internship updated successfully.')
+      } else {
+        await API.post('/api/internships/', payload)
+        setFormFeedback('Internship published and AI matching triggered.')
+      }
+
+      setEditingListing(null)
       setForm(blankForm(profile?.company_name || ''))
-      setFormFeedback('Internship published and AI matching triggered.')
       await fetchRecruiterData()
     } catch (err) {
       console.error('Failed to publish internship', err)
@@ -433,11 +462,78 @@ export default function RecruiterDashboard() {
     }
   }
 
+  const openCandidateModal = (candidate) => {
+    setSelectedCandidate(candidate)
+    setCandidateModalOpen(true)
+    setInviteFeedback(null)
+  }
+
+  const closeCandidateModal = () => {
+    setCandidateModalOpen(false)
+    setSelectedCandidate(null)
+    setInviteFeedback(null)
+  }
+
+  const handleInviteToApply = (candidate) => {
+    setSelectedCandidate(candidate)
+    setInviteFeedback(`Invite sent to ${candidate.name || 'candidate'} successfully.`)
+    setCandidateModalOpen(true)
+  }
+
+  const openListingModal = (listing) => {
+    setSelectedListing(listing)
+    setListingStatus(listing.status || 'OPEN')
+    setStatusFeedback(null)
+    setListingModalOpen(true)
+  }
+
+  const closeListingModal = () => {
+    setListingModalOpen(false)
+    setSelectedListing(null)
+    setStatusFeedback(null)
+  }
+
+  const handleEditListing = (listing) => {
+    setEditingListing(listing)
+    setForm({
+      title: listing.title || '',
+      company: profile?.company_name || '',
+      location: listing.location || 'Remote',
+      mode: listing.work_type || 'Remote',
+      duration: listing.duration || '',
+      stipend: listing.stipend?.toString() || '',
+      description: listing.description || '',
+      responsibilities: listing.responsibilities || '',
+      requiredSkills: (listing.required_skills || []).join(', '),
+      preferredSkills: (listing.preferred_skills || []).join(', '),
+      startDate: listing.start_date || '',
+      deadline: listing.deadline || '',
+    })
+    setActiveNav('post')
+  }
+
+  const handleUpdateListingStatus = async () => {
+    if (!selectedListing?.id) return
+    try {
+      setStatusSaving(true)
+      setStatusFeedback(null)
+      await API.patch(`/api/internships/${selectedListing.id}/`, {
+        status: listingStatus,
+      })
+      setStatusFeedback('Status updated successfully.')
+      await fetchRecruiterData()
+    } catch (err) {
+      setStatusFeedback(err.response?.data?.detail || 'Unable to update internship status right now.')
+    } finally {
+      setStatusSaving(false)
+    }
+  }
+
   const renderSection = () => {
     switch (activeNav) {
       case 'post':
         return (
-          <section className="mt-8">
+          <section className="mt-8 max-h-[calc(100vh-180px)] overflow-y-auto pr-4">
             <form onSubmit={handleSubmit} className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-[0_35px_100px_rgba(5,7,19,0.55)]">
               {sectionHeading('Post internship', 'Launch a listing and trigger AI matching.')}
               <div className="mt-6 grid gap-4 text-sm text-white/80 md:grid-cols-2">
@@ -495,7 +591,7 @@ export default function RecruiterDashboard() {
                 </label>
               </div>
               <button type="submit" disabled={formLoading} className="mt-6 w-full rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-4 py-3 text-sm font-semibold shadow-[0_20px_50px_rgba(99,102,241,0.45)] disabled:cursor-not-allowed disabled:opacity-70">
-                {formLoading ? 'Publishing…' : 'Publish Internship & Run AI Matching'}
+                {formLoading ? (editingListing ? 'Updating…' : 'Publishing…') : editingListing ? 'Update Internship' : 'Publish Internship & Run AI Matching'}
               </button>
               {formFeedback && <p className="mt-2 text-xs text-white/70">{formFeedback}</p>}
             </form>
@@ -503,7 +599,7 @@ export default function RecruiterDashboard() {
         )
       case 'manage':
         return (
-          <section className="mt-8">
+          <section className="mt-8 max-h-[calc(100vh-180px)] overflow-y-auto pr-4">
             <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
               {sectionHeading('Manage internships', 'Track active roles and application volume.')}
               <div className="mt-6 overflow-x-auto">
@@ -526,21 +622,44 @@ export default function RecruiterDashboard() {
                         </td>
                       </tr>
                     )}
-                    {internshipsTable.map((row) => (
-                      <tr key={row.id} className="border-t border-white/10">
-                        <td className="py-4 font-semibold">{row.title}</td>
-                        <td className="py-4 text-white/60">{row.location}</td>
-                        <td className="py-4 text-white/60">{row.applicants}</td>
-                        <td className="py-4 text-white/60">{row.posted}</td>
-                        <td className="py-4">
-                          <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70">{row.status}</span>
-                        </td>
-                        <td className="py-4 text-right text-xs text-indigo-200">
-                          <button className="mr-3 hover:text-white">View</button>
-                          <button className="hover:text-white">Edit</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {internships.map((listing) => {
+                      const apps = applicationsByInternship.get(listing.id) || []
+                      const row = {
+                        title: listing.title,
+                        location: listing.location || 'Remote',
+                        applicants: apps.length,
+                        posted: formatDate(listing.created_at),
+                        status: deriveListingStatus(apps),
+                      }
+
+                      return (
+                        <tr key={listing.id} className="border-t border-white/10">
+                          <td className="py-4 font-semibold">{row.title}</td>
+                          <td className="py-4 text-white/60">{row.location}</td>
+                          <td className="py-4 text-white/60">{row.applicants}</td>
+                          <td className="py-4 text-white/60">{row.posted}</td>
+                          <td className="py-4">
+                            <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70">{row.status}</span>
+                          </td>
+                          <td className="py-4 text-right text-xs text-indigo-200">
+                            <button
+                              type="button"
+                              onClick={() => openListingModal(listing)}
+                              className="mr-3 hover:text-white"
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditListing(listing)}
+                              className="hover:text-white"
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -604,8 +723,20 @@ export default function RecruiterDashboard() {
                     </div>
                     <p className="mt-2 text-xs text-emerald-200">Verification {student.verification}</p>
                     <div className="mt-3 flex gap-2 text-xs">
-                      <button className="flex-1 rounded-full border border-white/10 px-3 py-2 text-white/70 hover:bg-white/5">View profile</button>
-                      <button className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-white">Invite to apply</button>
+                      <button
+                        type="button"
+                        onClick={() => openCandidateModal(student)}
+                        className="flex-1 rounded-full border border-white/10 px-3 py-2 text-white/70 hover:bg-white/5"
+                      >
+                        View profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleInviteToApply(student)}
+                        className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-white"
+                      >
+                        Invite to apply
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -750,8 +881,20 @@ export default function RecruiterDashboard() {
                         <span className="text-emerald-200">Top {candidate.skills[0] || 'skill match'}</span>
                       </div>
                       <div className="mt-3 flex gap-2 text-xs">
-                        <button className="flex-1 rounded-full border border-white/10 px-3 py-2 text-white/70 hover:bg-white/5">View profile</button>
-                        <button className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-white">Invite to apply</button>
+                        <button
+                          type="button"
+                          onClick={() => openCandidateModal(candidate)}
+                          className="flex-1 rounded-full border border-white/10 px-3 py-2 text-white/70 hover:bg-white/5"
+                        >
+                          View profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInviteToApply(candidate)}
+                          className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-white"
+                        >
+                          Invite to apply
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -855,7 +998,12 @@ export default function RecruiterDashboard() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/5">
+              <button
+                type="button"
+                onClick={() => handleNavClick('messages')}
+                className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/5"
+                aria-label="Open messages"
+              >
                 <Bell size={16} />
               </button>
               <button onClick={logout} className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/5">
@@ -877,6 +1025,175 @@ export default function RecruiterDashboard() {
       <footer className="border-t border-white/10 px-8 py-4 text-xs text-white/50">
         © {new Date().getFullYear()} InternConnect AI. All rights reserved.
       </footer>
+      {candidateModalOpen && selectedCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-xl rounded-[32px] border border-white/10 bg-[#050a1c] p-6 text-sm shadow-[0_20px_80px_rgba(3,4,14,0.8)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Candidate details</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">{selectedCandidate.name || 'Candidate profile'}</h2>
+                <p className="mt-1 text-sm text-white/60">{selectedCandidate.uni}</p>
+              </div>
+              <button type="button" onClick={closeCandidateModal} className="rounded-full border border-white/10 p-1 text-white/60 hover:bg-white/10">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Verification level</p>
+                <p className="mt-2 text-sm text-white">{selectedCandidate.verification || 'Verified talent'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">VSPS</p>
+                <p className="mt-2 text-sm text-white">{formatVsps(selectedCandidate.vsps)}</p>
+              </div>
+              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Top skills</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(selectedCandidate.skills || []).map((skill) => (
+                    <span key={`${selectedCandidate.id}-${skill}`} className="rounded-full border border-white/10 px-3 py-1 text-xs">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {inviteFeedback && <p className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">{inviteFeedback}</p>}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleInviteToApply(selectedCandidate)}
+                className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(99,102,241,0.35)]"
+              >
+                Send invitation
+              </button>
+              <button
+                type="button"
+                onClick={closeCandidateModal}
+                className="flex-1 rounded-full border border-white/10 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {listingModalOpen && selectedListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-xl rounded-[32px] border border-white/10 bg-[#050a1c] p-6 text-sm shadow-[0_20px_80px_rgba(3,4,14,0.8)] max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Internship details</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">{selectedListing.title || 'Internship details'}</h2>
+                <p className="mt-1 text-sm text-white/60">{selectedListing.location || 'Remote'}</p>
+              </div>
+              <button type="button" onClick={closeListingModal} className="rounded-full border border-white/10 p-1 text-white/60 hover:bg-white/10">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 overflow-y-auto flex-1 pr-3">
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Type</p>
+                <p className="mt-2 text-sm text-white">{selectedListing.work_type || 'Remote'}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Stipend</p>
+                <p className="mt-2 text-sm text-white">{selectedListing.stipend ? `₹${selectedListing.stipend}` : 'Not specified'}</p>
+              </div>
+              {selectedListing.duration && (
+                <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Duration</p>
+                  <p className="mt-2 text-sm text-white">{selectedListing.duration}</p>
+                </div>
+              )}
+              {selectedListing.start_date && (
+                <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Start Date</p>
+                  <p className="mt-2 text-sm text-white">{new Date(selectedListing.start_date).toLocaleDateString()}</p>
+                </div>
+              )}
+              {selectedListing.deadline && (
+                <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Application Deadline</p>
+                  <p className="mt-2 text-sm text-white">{new Date(selectedListing.deadline).toLocaleDateString()}</p>
+                </div>
+              )}
+              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Description</p>
+                <p className="mt-2 text-sm text-white/70 whitespace-pre-line">{selectedListing.description || 'No description available.'}</p>
+              </div>
+              {selectedListing.responsibilities && (
+                <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Responsibilities</p>
+                  <p className="mt-2 text-sm text-white/70 whitespace-pre-line">{selectedListing.responsibilities}</p>
+                </div>
+              )}
+              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Required skills</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(selectedListing.required_skills || []).map((skill) => (
+                    <span key={`${selectedListing.id}-${skill}`} className="rounded-full border border-white/10 px-3 py-1 text-xs">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {selectedListing.preferred_skills && selectedListing.preferred_skills.length > 0 && (
+                <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Preferred skills</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedListing.preferred_skills.map((skill) => (
+                      <span key={`${selectedListing.id}-${skill}`} className="rounded-full border border-white/10 px-3 py-1 text-xs bg-white/5">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <label className="block text-xs uppercase tracking-[0.3em] text-white/50">Listing status</label>
+                <select
+                  value={listingStatus}
+                  onChange={(e) => setListingStatus(e.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+                >
+                  {Object.entries(statusLabelMap).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {statusFeedback && <p className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">{statusFeedback}</p>}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleUpdateListingStatus}
+                disabled={statusSaving}
+                className="flex-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(16,185,129,0.35)] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {statusSaving ? 'Saving…' : 'Save status'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeListingModal()
+                  handleEditListing(selectedListing)
+                }}
+                className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(99,102,241,0.35)]"
+              >
+                Edit listing
+              </button>
+              <button
+                type="button"
+                onClick={closeListingModal}
+                className="flex-1 rounded-full border border-white/10 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {companyEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
           <form

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { User2, Briefcase } from 'lucide-react'
+import { User2, Briefcase, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import API from '../services/api'
 import FeedbackToast from '../components/FeedbackToast'
@@ -70,6 +70,8 @@ export default function Signup() {
   const [hintStatus, setHintStatus] = useState('idle')
   const [hasHydrated, setHasHydrated] = useState(false)
   const [activePolicy, setActivePolicy] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const isLastStep = currentStep === steps.length
   const isStudent = formData.role === 'APPLICANT'
@@ -277,6 +279,11 @@ export default function Signup() {
 
   const renderInput = (props) => {
     const inputId = props.id || `signup-${props.name}`
+    const isPasswordField = props.inputType === 'password'
+    const isConfirmPassword = props.name === 're_password'
+    const showPass = isConfirmPassword ? showConfirmPassword : showPassword
+    const toggleShowPass = isConfirmPassword ? setShowConfirmPassword : setShowPassword
+    
     return (
       <div className={props.fullWidth ? 'sm:col-span-2' : ''}>
         <label htmlFor={inputId} className="text-xs uppercase tracking-[0.3em] text-white/60">
@@ -309,6 +316,27 @@ export default function Signup() {
             required={props.required}
             className={`mt-2 w-full rounded-2xl border border-white/10 px-4 py-3 text-white placeholder:text-white/30 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${props.variant === 'tags' ? 'bg-[#111735] ring-1 ring-indigo-500/20' : 'bg-white/5'}`}
           />
+        ) : isPasswordField ? (
+          <div className="relative mt-2">
+            <input
+              id={inputId}
+              name={props.name}
+              type={showPass ? 'text' : 'password'}
+              value={formData[props.name]}
+              onChange={handleChange}
+              placeholder={props.placeholder}
+              required={props.required}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/30 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+            <button
+              type="button"
+              onClick={() => toggleShowPass(!showPass)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/90 transition"
+              aria-label={showPass ? 'Hide password' : 'Show password'}
+            >
+              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
         ) : (
           <input
             id={inputId}

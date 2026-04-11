@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Github, Globe } from 'lucide-react'
+import { Github, Globe, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import FeedbackToast from '../components/FeedbackToast'
 import AuthFooter from '../components/AuthFooter'
+import ForgotPasswordDialog from '../components/ForgotPasswordDialog'
 import logo from '../../res/logo.png'
 import heroBanner from '../../res/bannerMain.jpeg'
 import aiIcon from '../../res/ai.png'
@@ -56,12 +57,14 @@ export default function Login() {
   const { login, socialLogin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(false)
   const [feedback, setFeedback] = useState(null)
   const [isSocialProcessing, setIsSocialProcessing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [profileHint, setProfileHint] = useState(null)
   const [hintStatus, setHintStatus] = useState('idle')
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false)
   const navigate = useNavigate()
 
   const logoSrc = typeof logo === 'string' ? logo : ''
@@ -353,19 +356,33 @@ export default function Login() {
               <label className="block text-sm">
                 <div className="flex items-center justify-between text-white/80">
                   <span>Password</span>
-                  <Link to="/forgot" className="text-xs font-semibold text-indigo-300 hover:text-indigo-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotPasswordOpen(true)}
+                    className="text-xs font-semibold text-indigo-300 transition hover:text-indigo-100"
+                  >
                     Forgot?
-                  </Link>
+                  </button>
                 </div>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/40 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  placeholder="••••••••"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-12 text-white placeholder:text-white/40 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/90 transition"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </label>
 
               <label className="flex items-center gap-2 text-xs text-white/70">
@@ -427,6 +444,11 @@ export default function Login() {
       <div className="mx-auto mt-10 max-w-6xl">
         <AuthFooter />
       </div>
+      <ForgotPasswordDialog
+        open={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+        defaultEmail={email}
+      />
     </div>
   )
 }

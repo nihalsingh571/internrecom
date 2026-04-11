@@ -14,6 +14,7 @@ import VerifyOtp from './pages/VerifyOtp';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import SecurityCenter from './pages/SecurityCenter';
+import ResetPassword from './pages/ResetPassword';
 import { useAuth } from './context/AuthContext';
 
 // Protected Route Component
@@ -39,6 +40,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/verify-otp" element={<VerifyOtp />} />
+            <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route

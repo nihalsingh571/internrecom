@@ -40,6 +40,13 @@ class RecruiterProfile(models.Model):
         return self.company_name
 
 class Internship(models.Model):
+    STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('REVIEWING', 'Reviewing'),
+        ('PAUSED', 'Paused'),
+        ('CLOSED', 'Closed'),
+    ]
+
     recruiter = models.ForeignKey(RecruiterProfile, on_delete=models.CASCADE, related_name='internships')
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -47,6 +54,12 @@ class Internship(models.Model):
     work_type = models.CharField(max_length=50, default='On-site')
     stipend = models.PositiveIntegerField(null=True, blank=True)
     required_skills = models.JSONField(default=list)
+    preferred_skills = models.JSONField(default=list, blank=True)
+    responsibilities = models.TextField(blank=True)
+    duration = models.CharField(max_length=100, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    deadline = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='OPEN')
     created_at = models.DateTimeField(auto_now_add=True)
 
 class PlatformSettings(models.Model):

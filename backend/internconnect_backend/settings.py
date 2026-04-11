@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -168,9 +169,20 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
+FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'http://localhost:5173')
+_frontend_url = urlparse(FRONTEND_BASE_URL)
+FRONTEND_DOMAIN = os.getenv('FRONTEND_DOMAIN', _frontend_url.netloc or 'localhost:5173')
+FRONTEND_PROTOCOL = os.getenv('FRONTEND_PROTOCOL', _frontend_url.scheme or 'http')
+SITE_NAME = os.getenv('SITE_NAME', 'InternConnect')
+
 DJOSER = {
     'LOGIN_FIELD': 'email',
     'USER_CREATE_PASSWORD_RETYPE': True,
+    'PASSWORD_RESET_CONFIRM_URL': 'reset-password/{uid}/{token}',
+    'PASSWORD_RESET_CONFIRM_RETYPE': True,
+    'DOMAIN': os.getenv('DJOSER_DOMAIN', FRONTEND_DOMAIN),
+    'SITE_NAME': SITE_NAME,
+    'PASSWORD_RESET_SHOW_EMAIL_NOT_FOUND': False,
     'SERIALIZERS': {
         'user_create': 'users.serializers.UserCreateSerializer',
         'user': 'users.serializers.UserSerializer',
@@ -180,7 +192,6 @@ DJOSER = {
 
 CORS_ALLOW_ALL_ORIGINS = True  # For dev only
 
-FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'http://localhost:5173')
 FRONTEND_LOGIN_URL = os.getenv('FRONTEND_LOGIN_URL', f'{FRONTEND_BASE_URL}/login')
 SOCIAL_REDIRECT_WHITELIST = [uri.strip() for uri in os.getenv('SOCIAL_REDIRECT_WHITELIST', FRONTEND_LOGIN_URL).split(',')]
 

@@ -70,7 +70,8 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password, recaptchaToken) => {
         try {
             const response = await API.post('/auth/social/login/', { email, password, recaptchaToken });
-            if (response.data?.two_factor_required) {
+            const twoFactorRequired = response.data?.two_factor_required || response.data?.['2fa_required'];
+            if (twoFactorRequired) {
                 return { success: false, twoFactorRequired: true, userId: response.data.user_id };
             }
 

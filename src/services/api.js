@@ -26,7 +26,7 @@ API.interceptors.response.use(
         const originalRequest = error.config;
 
         // Prevent infinite loop if refresh fails
-        if (error.response.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
             originalRequest._retry = true;
             const refreshToken = localStorage.getItem('refresh_token');
             if (refreshToken) {
@@ -34,8 +34,12 @@ API.interceptors.response.use(
                     const response = await axios.post('http://localhost:8000/auth/jwt/refresh/', {
                         refresh: refreshToken
                     });
-                    localStorage.setItem('access_token', response.data.access);
-                    API.defaults.headers.common['Authorization'] = `JWT ${response.data.access}`;
+                    const newAccessToken = response.data.access;
+                    localStorage.setItem('access_token', newAccessToken);
+                    API.defaults.headers.common['Authorization'] = `JWT ${newAccessToken}`;
+                    if (originalRequest.headers) {
+                        originalRequest.headers.Authorization = `JWT ${newAccessToken}`;
+                    }
                     return API(originalRequest);
                 } catch (refreshError) {
                     // Refresh failed, logout

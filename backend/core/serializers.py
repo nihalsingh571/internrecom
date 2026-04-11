@@ -60,8 +60,14 @@ class InternshipSerializer(serializers.ModelSerializer):
     description = serializers.CharField(required=False, allow_blank=True)
     location = serializers.CharField(required=False)
     required_skills = serializers.ListField(child=serializers.CharField(), required=False)
+    preferred_skills = serializers.ListField(child=serializers.CharField(), required=False)
     work_type = serializers.CharField(required=False)
     stipend = serializers.IntegerField(required=False, allow_null=True)
+    status = serializers.ChoiceField(choices=Internship.STATUS_CHOICES, required=False)
+    responsibilities = serializers.CharField(required=False, allow_blank=True)
+    duration = serializers.CharField(required=False, allow_blank=True)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    deadline = serializers.DateField(required=False, allow_null=True)
     
     class Meta:
         model = Internship
@@ -71,8 +77,14 @@ class InternshipSerializer(serializers.ModelSerializer):
             'description',
             'location',
             'required_skills',
+            'preferred_skills',
             'work_type',
             'stipend',
+            'status',
+            'responsibilities',
+            'duration',
+            'start_date',
+            'deadline',
             'created_at',
             'recruiter',
             'recruiter_name',
