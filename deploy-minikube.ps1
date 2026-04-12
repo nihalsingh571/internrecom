@@ -82,20 +82,20 @@ Write-Info "Secrets applied [OK]"
 Write-Section "Phase 6+9 - Deploying PostgreSQL (StatefulSet + Auto PVC)"
 & $MINIKUBE kubectl -- apply -f k8s/postgres.yaml
 Write-Info "Waiting for PostgreSQL to be ready (up to 3 minutes)..."
-& $MINIKUBE kubectl -- wait --for=condition=ready pod -l app=postgres -n internconnect --timeout=180s
+& $MINIKUBE kubectl -- rollout status statefulset/postgres -n internconnect --timeout=180s
 Write-Info "PostgreSQL ready [OK]"
 
 # --- Deploy Redis ---
 Write-Section "Deploying Redis (K8s infra level)"
 & $MINIKUBE kubectl -- apply -f k8s/redis.yaml
-& $MINIKUBE kubectl -- wait --for=condition=ready pod -l app=redis -n internconnect --timeout=60s
+& $MINIKUBE kubectl -- rollout status deployment/redis -n internconnect --timeout=120s
 Write-Info "Redis ready [OK]"
 
 # --- Deploy Django Backend ---
 Write-Section "Phase 6 - Deploying Django Backend"
 & $MINIKUBE kubectl -- apply -f k8s/backend.yaml
 Write-Info "Waiting for backend to be ready (up to 3 minutes)..."
-& $MINIKUBE kubectl -- wait --for=condition=ready pod -l app=backend -n internconnect --timeout=180s
+& $MINIKUBE kubectl -- rollout status deployment/backend -n internconnect --timeout=300s
 Write-Info "Backend ready [OK]"
 
 # --- Run Django Migrations ---
@@ -109,8 +109,8 @@ Write-Info "Migrations complete [OK]"
 Write-Section "Phase 6 - Deploying Frontend + Nginx Proxy"
 & $MINIKUBE kubectl -- apply -f k8s/frontend.yaml
 & $MINIKUBE kubectl -- apply -f k8s/nginx.yaml
-& $MINIKUBE kubectl -- wait --for=condition=ready pod -l app=frontend -n internconnect --timeout=120s
-& $MINIKUBE kubectl -- wait --for=condition=ready pod -l app=nginx -n internconnect --timeout=60s
+& $MINIKUBE kubectl -- rollout status deployment/frontend -n internconnect --timeout=120s
+& $MINIKUBE kubectl -- rollout status deployment/nginx -n internconnect --timeout=60s
 Write-Info "Frontend and Nginx ready [OK]"
 
 # --- Phase 7: Verify All Services ---
