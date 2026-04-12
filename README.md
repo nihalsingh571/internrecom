@@ -159,3 +159,5 @@ docker-compose up --build
 ### 📖 Documentation
 - [Testing Guide](TESTING.md) - Comprehensive testing documentation
 - [Features](FEATURES.md) - Detailed feature list and roadmap
+
+<!-- CI/CD Trigger: 04/13/2026 01:56:17 -->
