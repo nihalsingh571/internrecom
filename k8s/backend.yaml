@@ -6,7 +6,7 @@ metadata:
   labels:
     app: backend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: backend
@@ -89,10 +89,11 @@ spec:
                   key: GEMINI_API_KEY
           readinessProbe:
             httpGet:
-              path: /api/
+              path: /admin/login/
               port: 8000
-            initialDelaySeconds: 20
+            initialDelaySeconds: 30
             periodSeconds: 10
+            failureThreshold: 5
           resources:
             requests:
               memory: "256Mi"
