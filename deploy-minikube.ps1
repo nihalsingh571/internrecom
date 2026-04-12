@@ -105,6 +105,16 @@ Write-Info "Running migrations on pod: $backendPod"
 & $MINIKUBE kubectl -- exec -n internconnect $backendPod -- python manage.py migrate --noinput
 Write-Info "Migrations complete [OK]"
 
+# --- Seed Demo Data (Admin + Students + Recruiters) ---
+Write-Section "Seeding Demo Data"
+Write-Info "Creating admin user (admin@example.com / admin123)..."
+& $MINIKUBE kubectl -- exec -n internconnect $backendPod -- python create_admin.py
+Write-Info "Seeding demo students (password: InternConnect123!)..."
+& $MINIKUBE kubectl -- exec -n internconnect $backendPod -- python manage.py seed_students
+Write-Info "Seeding demo recruiters + internships (password: InternRecruiter123!)..."
+& $MINIKUBE kubectl -- exec -n internconnect $backendPod -- python manage.py seed_internships
+Write-Info "Demo data seeded [OK]"
+
 # --- Deploy Frontend + Nginx ---
 Write-Section "Phase 6 - Deploying Frontend + Nginx Proxy"
 & $MINIKUBE kubectl -- apply -f k8s/frontend.yaml
@@ -135,42 +145,14 @@ Write-Section "Phase 10 - Resource Limits"
 Write-Info "CPU and Memory limits are defined in all deployment YAMLs [OK]"
 & $MINIKUBE kubectl -- describe nodes | Select-String -Pattern "Capacity|Allocatable"
 
-# --- Phase 11: Auto Scaling ---
-Write-Section "Phase 11 - Configuring Auto Scaling (HPA)"
-& $MINIKUBE kubectl -- apply -f k8s/hpa-backend.yaml
-& $MINIKUBE kubectl -- apply -f k8s/hpa-frontend.yaml
-Write-Info "HPA configured [OK]"
-& $MINIKUBE kubectl -- get hpa -n internconnect
+# --- Phase 11: Auto Scaling DISABLED for Minikube (low memory) ---
+Write-Section "Phase 11 - Auto Scaling (Skipped for Minikube)"
+Write-Info "HPA disabled to keep cluster stable on limited RAM [OK]"
 
-# --- Phase 12+13+14: Monitoring (Prometheus + Grafana) ---
-Write-Section "Phase 12+13 - Installing Prometheus and Grafana"
-
-# Check if Helm is installed
-$helmInstalled = Get-Command helm -ErrorAction SilentlyContinue
-if (-Not $helmInstalled) {
-    Write-Warn "Helm not found. Installing via winget..."
-    winget install Helm.Helm --silent
-    $env:PATH += ";C:\Program Files\helm"
-    Write-Info "Helm installed [OK]"
-} else {
-    Write-Info "Helm found [OK]"
-}
-
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-# Load Minikube kubeconfig so helm uses minikube context
-& $MINIKUBE kubectl -- config view --raw | Out-File -FilePath "$env:TEMP\minikube-kubeconfig.yaml" -Encoding ascii
-$env:KUBECONFIG = "$env:TEMP\minikube-kubeconfig.yaml"
-
-helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --values k8s/monitoring/prometheus-values.yaml --wait --timeout 5m
-
-Write-Info "Prometheus and Grafana installed [OK]"
-
-# --- Phase 14: Alert Rules ---
-Write-Section "Phase 14 - Applying Alert Rules"
-& $MINIKUBE kubectl -- apply -f k8s/monitoring/alertrules.yaml
-Write-Info "Alert rules applied [OK]"
+# --- Phase 12+13+14: Monitoring DISABLED for Minikube (too heavy, needs 1.5GB RAM) ---
+Write-Section "Phase 12+13 - Monitoring (Skipped for Minikube)"
+Write-Info "Prometheus and Grafana skipped to keep cluster stable on limited RAM [OK]"
+Write-Info "To enable monitoring, run: helm upgrade --install prometheus prometheus-community/kube-prometheus-stack"
 
 # --- Final Status ---
 Write-Section "All 14 Phases Complete!"
@@ -183,21 +165,14 @@ Write-Info "[Services] Available:"
 & $MINIKUBE kubectl -- get services -n internconnect
 
 Write-Host ""
-Write-Info "[HPA Status] Auto-scaling:"
-& $MINIKUBE kubectl -- get hpa -n internconnect
-
-Write-Host ""
-Write-Info "[App Access] Open in Browser:"
+Write-Info "[App Access] Open in Browser (keep this window open for tunnel):"
 & $MINIKUBE service nginx-service -n internconnect
 
 Write-Host ""
-Write-Info "[Grafana] Access (run in a new terminal):"
-Write-Host "   & $MINIKUBE kubectl -- port-forward svc/prometheus-grafana 3000:80 -n monitoring"
-Write-Host "   Then open: http://localhost:3000  (Login: admin / admin123)"
+Write-Info "[Kubernetes Dashboard] Run in a new terminal:"
+Write-Host "   C:\minikube\minikube.exe dashboard"
 Write-Host ""
-Write-Info "[Prometheus] Access (run in a new terminal):"
-Write-Host "   & $MINIKUBE kubectl -- port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 -n monitoring"
-Write-Host "   Then open: http://localhost:9090"
-Write-Host ""
-Write-Info "[Kubernetes Dashboard]"
-& $MINIKUBE dashboard
+Write-Info "[Demo Login Credentials]"
+Write-Host "   Admin:     admin@example.com       / admin123"
+Write-Host "   Student:   ananya.sharma@lpu.in    / InternConnect123!"
+Write-Host "   Recruiter: google@partners.internconnect.ai / InternRecruiter123!"

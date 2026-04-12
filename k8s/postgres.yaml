@@ -46,23 +46,18 @@ spec:
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command:
-                - pg_isready
-                - -U
-                - internconnect_user
-                - -d
-                - internconnect_db
-            initialDelaySeconds: 15
+              command: ["pg_isready", "-U", "internconnect_user"]
+            initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             exec:
-              command:
-                - pg_isready
-                - -U
-                - internconnect_user
-            initialDelaySeconds: 30
+              command: ["pg_isready", "-U", "internconnect_user"]
+            initialDelaySeconds: 90
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               memory: "256Mi"

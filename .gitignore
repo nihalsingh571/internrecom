@@ -88,3 +88,5 @@ env/
 # Coverage
 .coverage
 coverage/
+
+k8s/secrets.yaml
