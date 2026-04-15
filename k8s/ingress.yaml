@@ -8,15 +8,14 @@ metadata:
   name: internconnect-ingress
   namespace: internconnect
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /admin/login/
+    alb.ingress.kubernetes.io/success-codes: "200"
 spec:
-  ingressClassName: nginx
+  ingressClassName: alb
   rules:
-    - host: internconnect.local
-      http:
+    - http:
         paths:
           # Django API routes
           - path: /api
