@@ -189,7 +189,7 @@ jobs:
           file: docker/Dockerfile.frontend
           push: true
           build-args: |
-            VITE_API_BASE_URL=http://internconnect.local/api
+            VITE_API_BASE_URL=/api
           tags: |
             ${{ env.IMAGE_FRONTEND }}:latest
             ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.sha_short }}
