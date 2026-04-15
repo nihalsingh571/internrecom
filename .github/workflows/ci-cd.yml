@@ -189,7 +189,7 @@ jobs:
           file: docker/Dockerfile.frontend
           push: true
           build-args: |
-            VITE_API_BASE_URL=/api
+            VITE_API_BASE_URL=
           tags: |
             ${{ env.IMAGE_FRONTEND }}:latest
             ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.sha_short }}
