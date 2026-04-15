@@ -22,8 +22,8 @@ spec:
           command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres; sleep 2; done']
       containers:
         - name: backend
-          image: internconnect-backend:latest
-          imagePullPolicy: Never          # Use local Minikube image
+          image: nihaal1/internconnect-backend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:

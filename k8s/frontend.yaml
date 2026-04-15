@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: internconnect-frontend:latest
-          imagePullPolicy: Never          # Use local Minikube image
+          image: nihaal1/internconnect-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           readinessProbe:
