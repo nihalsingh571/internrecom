@@ -2,6 +2,7 @@
 
 InternConnect is a comprehensive platform designed to bridge the gap between students and recruiters. It leverages machine learning to provide personalized internship recommendations based on candidate skills, assessment performance, and verification scores (VSPS).
 
+> **🟢 Live Production URL:** [http://k8s-internco-internco-c15f7fe546-2113075165.ap-south-1.elb.amazonaws.com](http://k8s-internco-internco-c15f7fe546-2113075165.ap-south-1.elb.amazonaws.com)
 
 ## 📸 Screenshots
 
@@ -43,29 +44,53 @@ InternConnect is a comprehensive platform designed to bridge the gap between stu
 -   **Testing**: Jest, React Testing Library, pytest, Playwright, Codecov
 -   **CI/CD**: GitHub Actions, Bandit (Security), ESLint
 
-## ☁️ DevOps & Infrastructure
+## ☸️ AWS EKS Production Deployment & Infrastructure
 
-This project implements a robust DevOps pipeline ensuring scalability, reliability, and automated deployment.
+The application successfully runs on an **AWS Elastic Kubernetes Service (EKS)** cluster spread across multiple Availability Zones in Mumbai for high availability.
 
-### Infrastructure as Code (IaC) - **Terraform**
--   Provisioned AWS infrastructure including VPCs, EC2 instances, and Security Groups.
--   Automated simple and reproducible environment setup.
+### 🏗️ Architecture & Traffic Flow
 
-### Configuration Management - **Ansible**
--   Automated the configuration of EC2 instances.
--   Managed dependencies, installed Docker, and set up environment variables across servers.
+- **Infrastructure**: 3 EC2 `t3.medium` instances (6 vCPUs, 12GB RAM total) across 3 Availability Zones.
+- **AWS Application Load Balancer (ALB)** routes traffic to the appropriate services:
+  - `/api/*` ➔ Django Backend Pods (Autoscaled via HPA)
+  - `/auth/*` ➔ Django Auth Pods
+  - `/*` ➔ React Frontend Pod ➔ NGINX Proxy
+- **Data Layer**:
+  - PostgreSQL (StatefulSet backed by AWS EBS for persistent storage)
+  - Redis (Caching Layer)
 
-### Containerization - **Docker**
--   Both Frontend and Backend are dockerized for consistency across development and production environments.
--   `docker-compose` used for orchestrating multi-container services.
+### 🚀 Implementation Phases
 
-### Cloud Provider - **AWS**
--   Hosted on Amazon Web Services (AWS) using EC2 for compute and S3 for static asset storage.
--   Scalable architecture designed to handle varying loads.
+The deployment encompasses 14 comprehensive technical phases:
 
-### Monitoring - **Nagios**
--   Real-time monitoring of server health, disk usage, and uptime.
--   Alerting system configured to notify administrators of any downtime or performance anomalies.
+1. **EKS Cluster Creation**: High Availability cluster on AWS.
+2. **IAM & OIDC Security**: AWS IAM linked with Kubernetes Service Accounts for secure, password-less pod access.
+3. **EBS CSI Driver Configuration**: Dynamic provisioning of persistent volumes via AWS Elastic Block Store (EBS).
+4. **AWS Load Balancer Controller**: Automated creation and management of the public ALB through Kubernetes Ingress.
+5. **Docker Containerization**: Custom frontend/backend images hosted on Docker Hub.
+6. **Data Storage Deployment**: Stateful sets for PostgreSQL and Redis caching.
+7. **Database Migrations & Seeding**: Production database initialized with extensive dummy data.
+8. **Frontend API Configuration**: Seamless communication established between frontend and Load Balancer via relative paths.
+9. **CI/CD Pipeline Integration**: Fully automated GitHub Actions pipeline executing builds and deployments under 4 minutes.
+10. **Ingress & Load Balancer Configuration**: Advanced traffic shaping mapped via ALB Ingress controller.
+11. **Metrics Server Installation**: Empowered cluster-wide, real-time CPU & RAM utilization tracking.
+12. **Horizontal Pod Autoscaling (HPA)**: Automatic scaling logic scaling up backend pods when CPU > 70% or Memory > 80%.
+13. **Prometheus Monitoring**: Comprehensive time-series data scraping every 15 seconds across all nodes and pods.
+14. **Grafana Dashboards**: Visually rich monitoring interface analyzing pod stability, requests rates, and hardware utilization.
+
+### 📊 System Monitoring & Alerting
+
+We leverage **Prometheus** and **Grafana** to achieve complete observability of our Kubernetes cluster performance, pod health, HPA metrics, and system alerts.
+
+| Alertmanager Overview |
+|:---:|
+| ![Alertmanager Overview](src/assets/grafana-alertmanager.png) |
+| *Managing and routing automated alerts triggered by Prometheus rules.* |
+
+| Kubernetes Cluster Metrics (Part 1) | Kubernetes Cluster Metrics (Part 2) |
+|:---:|:---:|
+| ![Cluster Overview 1](src/assets/grafana-cluster-1.png) | ![Cluster Overview 2](src/assets/grafana-cluster-2.png) |
+| *Real-time visualization of node storage, memory-intensive pods, and disk I/O.* | *Tracking running pods count, CPU Idle Average, cluster load, and memory allocation.* |
 
 ## 🧪 Testing Framework
 
