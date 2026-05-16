@@ -7,9 +7,6 @@ import StudentProfile from './pages/StudentProfile';
 import StudentSkills from './pages/StudentSkills';
 import StudentInternships from './pages/StudentInternships';
 import StudentApplications from './pages/StudentApplications';
-import StudentInvitations from './pages/StudentInvitations';
-import StudentInterviews from './pages/StudentInterviews';
-import StudentMessages from './pages/StudentMessages';
 import RecruiterDashboard from './pages/RecruiterDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Assessment from './pages/Assessment'; // New Import
@@ -70,9 +67,6 @@ function App() {
                 <Route path="skills" element={<StudentSkills />} />
                 <Route path="internships" element={<StudentInternships />} />
                 <Route path="applications" element={<StudentApplications />} />
-                <Route path="invitations" element={<StudentInvitations />} />
-                <Route path="interviews" element={<StudentInterviews />} />
-                <Route path="messages" element={<StudentMessages />} />
             </Route>
 
             {/* Assessment - Separate Layout for Proctoring */}

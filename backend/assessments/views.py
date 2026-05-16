@@ -109,12 +109,12 @@ class SkillViewSet(viewsets.ModelViewSet):
 
         try:
             # Try to generate questions with Gemini
-            questions = generate_questions_with_gemini(skill.name, difficulty='medium')
+            questions = generate_questions_with_gemini(skill.name)
             generation_method = "AI"
             message = "Skill created successfully. 10 questions generated using AI."
         except Exception as e:
             # Fallback to default questions
-            questions = generate_default_questions(skill.name, difficulty='medium')
+            questions = generate_default_questions(skill.name)
             generation_method = "fallback"
             message = "Skill created successfully. AI question generation failed. 10 default questions created."
 
@@ -137,19 +137,6 @@ class AssessmentViewSet(viewsets.ViewSet):
              return Response({"error": "Only applicants can take assessments"}, status=status.HTTP_403_FORBIDDEN)
 
         profile = user.applicant_profile
-        if not profile.is_eligible_for_assessments:
-            return Response(
-                {
-                    "error": "Complete and verify your student profile before taking skill assessments.",
-                    "eligibility": {
-                        "is_profile_complete": profile.is_profile_complete,
-                        "profile_completion_percentage": profile.profile_completion_percentage,
-                        "college_email_verified": profile.university_email_verified,
-                        "missing_fields": profile.missing_required_fields,
-                    },
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
         raw_skills = profile.skills
 
         # Determine adaptive difficulty from the candidate's last accuracy (proposal §7)

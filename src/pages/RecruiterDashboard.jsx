@@ -4,34 +4,15 @@ import {
   ArrowUpRight,
   BadgeCheck,
   Bell,
-  Briefcase,
-  Building,
   ChartBar,
-  CheckCircle,
-  ChevronDown,
-  Clock,
-  FileText,
-  Globe,
-  LayoutDashboard,
   LineChart,
   LogOut,
-  MapPin,
-  MessageSquare,
   PieChart,
-  Plus,
-  Search,
-  Send,
-  Star,
   UserCircle,
-  Users,
   X,
-  Info,
 } from 'lucide-react'
 import API from '../services/api'
-import RecruiterChatUI from '../components/RecruiterChatUI'
 import { useAuth } from '../context/AuthContext'
-import ChangePasswordPanel from '../components/ChangePasswordPanel'
-import FeedbackToast from '../components/FeedbackToast'
 
 const navLinks = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -41,7 +22,6 @@ const navLinks = [
   { id: 'discovery', label: 'Candidate Discovery' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'messages', label: 'Messages' },
-  { id: 'sent_invites', label: 'Sent Invitations' },
   { id: 'company', label: 'Company Profile' },
 ]
 
@@ -137,38 +117,17 @@ export default function RecruiterDashboard() {
   const [companyForm, setCompanyForm] = useState({
     company_name: '',
     company_website: '',
-    designation: '',
-    company_linkedin: '',
-    company_description: '',
-    phone_number: '',
-    company_size: '',
-    industry: '',
-    company_location: '',
   })
   const [companySaving, setCompanySaving] = useState(false)
   const [companyError, setCompanyError] = useState(null)
   const [selectedCandidate, setSelectedCandidate] = useState(null)
   const [candidateModalOpen, setCandidateModalOpen] = useState(false)
   const [inviteFeedback, setInviteFeedback] = useState(null)
-  const [pageFeedback, setPageFeedback] = useState(null)
-  const [workEmailOtp, setWorkEmailOtp] = useState('')
-  const [otpLoading, setOtpLoading] = useState(false)
-  const [sentInvitations, setSentInvitations] = useState([])
-  const [selectedInternshipForInvite, setSelectedInternshipForInvite] = useState('')
-  const [inviteMessage, setInviteMessage] = useState('')
-  const [invitingLoading, setInvitingLoading] = useState(false)
 
   const openCompanyEditor = () => {
     setCompanyForm({
       company_name: profile?.company_name || '',
       company_website: profile?.company_website || '',
-      designation: profile?.designation || '',
-      company_linkedin: profile?.company_linkedin || '',
-      company_description: profile?.company_description || '',
-      phone_number: profile?.phone_number || '',
-      company_size: profile?.company_size || '',
-      industry: profile?.industry || '',
-      company_location: profile?.company_location || '',
     })
     setCompanyError(null)
     setCompanyEditorOpen(true)
@@ -218,25 +177,16 @@ export default function RecruiterDashboard() {
       setProfile(recruiterProfile)
       setForm((prev) => ({ ...prev, company: recruiterProfile.company_name || prev.company }))
 
-      if (!recruiterProfile.work_email_verified || !recruiterProfile.is_verified) {
-        setInternships([])
-        setApplications([])
-        setApplicants([])
-        return
-      }
-
-      const [internshipRes, applicationRes, applicantRes, invitesRes] = await Promise.all([
+      const [internshipRes, applicationRes, applicantRes] = await Promise.all([
         API.get('/api/internships/'),
         API.get('/api/applications/'),
         API.get('/api/applicants/'),
-        API.get('/api/invitations/')
       ])
 
       const recruiterInternships = (internshipRes.data || []).filter((listing) => listing.recruiter === recruiterProfile.id)
       setInternships(recruiterInternships)
       setApplications(applicationRes.data || [])
       setApplicants(applicantRes.data || [])
-      setSentInvitations(invitesRes.data || [])
     } catch (err) {
       console.error('Failed to load recruiter dashboard', err)
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -253,46 +203,6 @@ export default function RecruiterDashboard() {
   useEffect(() => {
     fetchRecruiterData()
   }, [fetchRecruiterData])
-
-  const handleSendWorkEmailOtp = async () => {
-    setOtpLoading(true)
-    setPageFeedback(null)
-    try {
-      const response = await API.post('/api/recruiter/send-otp', { workEmail: profile?.work_email || profile?.email })
-      setPageFeedback({ type: 'success', message: response.data?.message || 'Verification code sent.' })
-    } catch (error) {
-      setPageFeedback({
-        type: 'error',
-        message: error.response?.data?.detail || 'Unable to send work email verification code.',
-      })
-    } finally {
-      setOtpLoading(false)
-    }
-  }
-
-  const handleVerifyWorkEmailOtp = async (event) => {
-    event.preventDefault()
-    if (!workEmailOtp.trim()) {
-      setPageFeedback({ type: 'error', message: 'Enter the OTP sent to your work email.' })
-      return
-    }
-    setOtpLoading(true)
-    setPageFeedback(null)
-    try {
-      const response = await API.post('/api/recruiter/verify-otp', { otp: workEmailOtp.trim() })
-      setWorkEmailOtp('')
-      setProfile(response.data?.profile || profile)
-      setPageFeedback({ type: 'success', message: response.data?.message || 'Work email verified.' })
-      await fetchRecruiterData()
-    } catch (error) {
-      setPageFeedback({
-        type: 'error',
-        message: error.response?.data?.detail || 'Unable to verify work email code.',
-      })
-    } finally {
-      setOtpLoading(false)
-    }
-  }
 
   const applicationsByInternship = useMemo(() => {
     const map = new Map()
@@ -383,14 +293,12 @@ export default function RecruiterDashboard() {
       .filter((candidate) => !appliedApplicantIds.has(candidate.id))
       .sort((a, b) => (b.vsps_score ?? 0) - (a.vsps_score ?? 0))
     return sorted.slice(0, 3).map((candidate) => ({
-      ...candidate,
       id: candidate.id,
-      user_id: candidate.user_id,
       name: `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email,
       uni: candidate.college || candidate.degree || 'Emerging talent',
       vsps: candidate.vsps_score ?? 0,
       verification: candidate.vsps_score >= 0.75 ? 'Level 3' : candidate.vsps_score >= 0.5 ? 'Level 2' : 'Level 1',
-      display_skills: (candidate.skills || []).map((skill) => normalizeSkillLabel(skill)).filter(Boolean).slice(0, 4),
+      skills: (candidate.skills || []).map((skill) => normalizeSkillLabel(skill)).filter(Boolean).slice(0, 4),
     }))
   }, [applicants, appliedApplicantIds])
 
@@ -544,13 +452,6 @@ export default function RecruiterDashboard() {
       await API.patch('/api/recruiters/me/', {
         company_name: trimmedName,
         company_website: trimmedWebsite,
-        designation: companyForm.designation,
-        company_linkedin: companyForm.company_linkedin,
-        company_description: companyForm.company_description,
-        phone_number: companyForm.phone_number,
-        company_size: companyForm.company_size,
-        industry: companyForm.industry,
-        company_location: companyForm.company_location,
       })
       setCompanyEditorOpen(false)
       await fetchRecruiterData()
@@ -573,57 +474,10 @@ export default function RecruiterDashboard() {
     setInviteFeedback(null)
   }
 
-  const handleInviteToApply = async (e) => {
-    e.preventDefault()
-    if (!selectedInternshipForInvite) {
-      setInviteFeedback('Please select an internship.')
-      return
-    }
-    setInvitingLoading(true)
-    setInviteFeedback(null)
-    
-    console.log("DEBUG FRONTEND - selectedCandidate:", selectedCandidate)
-    console.log("DEBUG FRONTEND - studentId (user_id):", selectedCandidate.user_id)
-    
-    try {
-      const invitationResponse = await API.post('/api/invitations/send_invite/', {
-        student_id: selectedCandidate.user_id,
-        internship_id: selectedInternshipForInvite,
-        message: inviteMessage
-      })
-      
-      console.log("DEBUG FRONTEND - invitationResponse:", invitationResponse.data)
-      
-      setInviteFeedback(`Invite sent to ${selectedCandidate.name || 'candidate'} successfully.`)
-      await fetchRecruiterData()
-      setTimeout(() => {
-        closeCandidateModal()
-      }, 2000)
-    } catch (err) {
-      setInviteFeedback(err.response?.data?.error || 'Failed to send invite')
-    } finally {
-      setInvitingLoading(false)
-    }
-  }
-
-  const handleApplicationStatusChange = async (applicationId, newStatus) => {
-    try {
-      await API.patch(`/api/applications/${applicationId}/`, { status: newStatus })
-      await fetchRecruiterData()
-    } catch (err) {
-      console.error('Failed to update application status', err)
-      alert(err.response?.data?.error || 'Failed to update application status')
-    }
-  }
-
-  const handleWithdrawInvite = async (inviteId) => {
-    try {
-      await API.patch(`/api/invitations/${inviteId}/withdraw/`)
-      await fetchRecruiterData()
-    } catch (err) {
-      console.error('Failed to withdraw invite', err)
-      alert(err.response?.data?.error || 'Failed to withdraw invite')
-    }
+  const handleInviteToApply = (candidate) => {
+    setSelectedCandidate(candidate)
+    setInviteFeedback(`Invite sent to ${candidate.name || 'candidate'} successfully.`)
+    setCandidateModalOpen(true)
   }
 
   const openListingModal = (listing) => {
@@ -830,85 +684,6 @@ export default function RecruiterDashboard() {
                   </div>
                 ))}
               </div>
-              <div className="mt-10">
-                {sectionHeading('All Applicants', 'Review and manage incoming applications.')}
-                <div className="mt-6 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-xs uppercase tracking-[0.3em] text-white/40">
-                      <tr>
-                        <th className="pb-3 font-medium">Candidate</th>
-                        <th className="pb-3 font-medium">Internship</th>
-                        <th className="pb-3 font-medium">VSPS Score</th>
-                        <th className="pb-3 font-medium">Applied</th>
-                        <th className="pb-3 font-medium">Status</th>
-                        <th className="pb-3 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {applications.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="py-6 text-center text-white/50">No applications yet.</td>
-                        </tr>
-                      ) : (
-                        applications.slice().sort((a,b) => new Date(b.applied_at) - new Date(a.applied_at)).map((app) => {
-                          const internship = internships.find(i => i.id === app.internship)
-                          const fullApplicant = applicants.find(a => a.id === app.applicant)
-                          return (
-                            <tr key={app.id}>
-                              <td className="py-4">
-                                <p className="font-semibold text-white">{app.applicant_name || 'Candidate'}</p>
-                                <p className="text-xs text-white/50">{app.applicant_email}</p>
-                              </td>
-                              <td className="py-4 text-white/60">{internship?.title || 'Unknown Role'}</td>
-                              <td className="py-4">
-                                <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                                  app.applicant_vsps >= 0.7 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/10 text-white/70'
-                                }`}>
-                                  {formatVsps(app.applicant_vsps)}%
-                                </span>
-                              </td>
-                              <td className="py-4 text-white/60">{formatDate(app.applied_at)}</td>
-                              <td className="py-4">
-                                <select
-                                  value={app.status}
-                                  onChange={(e) => handleApplicationStatusChange(app.id, e.target.value)}
-                                  className={`appearance-none outline-none cursor-pointer rounded-full px-3 py-1 text-xs font-semibold ${
-                                    app.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                                    app.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                                    app.status === 'REVIEWED' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
-                                    'bg-white/10 text-white/70 border border-white/20'
-                                  }`}
-                                >
-                                  <option value="PENDING" className="bg-[#050a1c] text-white">PENDING</option>
-                                  <option value="REVIEWED" className="bg-[#050a1c] text-white">REVIEWED</option>
-                                  <option value="ACCEPTED" className="bg-[#050a1c] text-white">ACCEPTED</option>
-                                  <option value="REJECTED" className="bg-[#050a1c] text-white">REJECTED</option>
-                                </select>
-                              </td>
-                              <td className="py-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => fullApplicant && openCandidateModal(fullApplicant)}
-                                  className="mr-3 text-xs font-semibold text-indigo-300 hover:text-indigo-200"
-                                >
-                                  View Profile
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleNavClick('messages')}
-                                  className="text-xs font-semibold text-indigo-300 hover:text-indigo-200"
-                                >
-                                  Message
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           </section>
         )
@@ -936,8 +711,8 @@ export default function RecruiterDashboard() {
                       <span className="text-sm font-semibold text-indigo-200">VSPS {formatVsps(student.vsps)}</span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/70">
-                      {student.display_skills.length ? (
-                        student.display_skills.map((skill) => (
+                      {student.skills.length ? (
+                        student.skills.map((skill) => (
                           <span key={`${student.id}-${skill}`} className="rounded-full border border-white/10 px-3 py-1">
                             {skill}
                           </span>
@@ -957,7 +732,7 @@ export default function RecruiterDashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => openCandidateModal(student)}
+                        onClick={() => handleInviteToApply(student)}
                         className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-white"
                       >
                         Invite to apply
@@ -972,89 +747,53 @@ export default function RecruiterDashboard() {
       case 'analytics':
         return (
           <section className="mt-8">
-            <div className="grid gap-6 md:grid-cols-3">
-              {analyticsTrends.map((metric) => {
-                const Icon = metric.icon
-                return (
-                  <div key={metric.title} className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-300">
-                      <Icon size={24} />
-                    </div>
-                    <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/50">{metric.title}</p>
-                    <p className="mt-2 text-xl font-semibold text-white">{metric.value}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )
-      case 'sent_invites':
-        return (
-          <section className="mt-8 max-h-[calc(100vh-180px)] overflow-y-auto pr-4">
             <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-              {sectionHeading('Sent Invitations', 'Track internship invitations sent to students.')}
-              <div className="mt-6 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs uppercase tracking-[0.3em] text-white/40">
-                    <tr>
-                      <th className="pb-3">Candidate</th>
-                      <th className="pb-3">Internship</th>
-                      <th className="pb-3">Sent</th>
-                      <th className="pb-3">Status</th>
-                      <th className="pb-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sentInvitations.length === 0 && (
-                      <tr>
-                        <td className="py-4 text-white/60" colSpan={4}>
-                          No invitations sent yet. Go to Candidate Discovery to invite students.
-                        </td>
-                      </tr>
-                    )}
-                    {sentInvitations.map((invite) => (
-                      <tr key={invite.id} className="border-t border-white/10">
-                        <td className="py-4 font-semibold">{invite.student_name}</td>
-                        <td className="py-4 text-white/60">{invite.internship_title}</td>
-                        <td className="py-4 text-white/60">{formatDate(invite.created_at)}</td>
-                        <td className="py-4">
-                          <span className={`inline-block rounded-full border px-3 py-1 text-xs ${
-                            invite.status === 'accepted' ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200' :
-                            invite.status === 'rejected' ? 'border-rose-500/50 bg-rose-500/10 text-rose-200' :
-                            invite.status === 'withdrawn' ? 'border-slate-500/50 bg-slate-500/10 text-slate-300' :
-                            'border-white/15 text-white/70'
-                          }`}>
-                            {invite.status.charAt(0).toUpperCase() + invite.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="py-4 text-right">
-                          {invite.status === 'pending' && (
-                            <button
-                              onClick={() => handleWithdrawInvite(invite.id)}
-                              className="rounded-full border border-rose-500/50 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition"
-                            >
-                              Withdraw
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {sectionHeading('Recruitment analytics', 'AI-powered visibility across performance.')}
+              <div className="mt-5 space-y-4">
+                {analyticsTrends.map((trend) => (
+                  <div key={trend.title} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-sm text-white/70">
+                    <trend.icon size={18} className="text-indigo-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">{trend.title}</p>
+                      <p>{trend.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-[#0c122c] p-4 text-xs text-white/60">
+                <p className="font-semibold text-white">AI Candidate Ranking</p>
+                <p className="mt-2">Candidates are ranked via TF-IDF vectors + cosine similarity across verified skills, VSPS, and assessment accuracy.</p>
               </div>
             </div>
           </section>
         )
-
       case 'messages':
         return (
           <section className="mt-8">
-            <RecruiterChatUI />
+            <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
+              {sectionHeading('Messages', 'Latest candidate activity in your inbox.')}
+              <div className="mt-5 space-y-4">
+                {latestMessages.length === 0 && <p className="text-xs text-white/60">Applicants will appear here once they contact you.</p>}
+                {latestMessages.map((message) => (
+                  <div key={message.sender + message.time} className="rounded-2xl border border-white/10 bg-[#0b1129] p-4">
+                    <div className="flex items-center justify-between text-sm text-white/60">
+                      <p className="font-semibold text-white">{message.sender}</p>
+                      <span>{message.time}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-white/70">{message.preview}</p>
+                    <div className="mt-3 flex gap-2 text-xs">
+                      <button className="rounded-full border border-white/10 px-3 py-1 text-white/70 hover:bg-white/5">Reply</button>
+                      <button className="rounded-full border border-white/10 px-3 py-1 text-white/70 hover:bg-white/5">Schedule interview</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         )
       case 'company':
         return (
-          <section className="mt-8 space-y-6">
+          <section className="mt-8">
             <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
               {sectionHeading('Company profile', 'Keep your employer branding updated.')}
               <div className="mt-4 text-sm text-white/70">
@@ -1066,32 +805,8 @@ export default function RecruiterDashboard() {
                 </p>
                 <dl className="mt-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <dt className="text-white/50">Designation</dt>
-                    <dd className="font-semibold text-white">{profile?.designation || '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
                     <dt className="text-white/50">Website</dt>
                     <dd className="font-semibold text-white">{profile?.company_website || '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-white/50">LinkedIn</dt>
-                    <dd className="font-semibold text-white">{profile?.company_linkedin || '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-white/50">Industry & Size</dt>
-                    <dd className="font-semibold text-white">{(profile?.industry || profile?.company_size) ? `${profile?.industry || 'Unknown'} · ${profile?.company_size || 'Unknown'}` : '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-white/50">Location</dt>
-                    <dd className="font-semibold text-white">{profile?.company_location || '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-white/50">Contact (Phone)</dt>
-                    <dd className="font-semibold text-white">{profile?.phone_number || '—'}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-white/50">Contact (Email)</dt>
-                    <dd className="font-semibold text-white">{user?.email}</dd>
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-white/50">Verification</dt>
@@ -1099,13 +814,11 @@ export default function RecruiterDashboard() {
                       {profile?.is_verified ? 'Verified' : 'Pending'}
                     </dd>
                   </div>
-                </dl>
-                {profile?.company_description && (
-                  <div className="mt-6 border-t border-white/10 pt-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-2">About Company</p>
-                    <p className="text-sm text-white/80 whitespace-pre-wrap">{profile.company_description}</p>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-white/50">Contact</dt>
+                    <dd className="font-semibold text-white">{user?.email}</dd>
                   </div>
-                )}
+                </dl>
                 <button
                   type="button"
                   onClick={openCompanyEditor}
@@ -1115,7 +828,6 @@ export default function RecruiterDashboard() {
                 </button>
               </div>
             </div>
-            <ChangePasswordPanel onFeedback={setPageFeedback} />
           </section>
         )
       default:
@@ -1238,97 +950,8 @@ export default function RecruiterDashboard() {
     )
   }
 
-  if (profile && (!profile.work_email_verified || !profile.is_verified)) {
-    const needsEmail = !profile.work_email_verified
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#030616] via-[#050a1c] to-[#090f2a] px-4 py-10 text-white">
-        <FeedbackToast feedback={pageFeedback} onClose={() => setPageFeedback(null)} />
-        <div className="mx-auto flex max-w-3xl flex-col gap-6 rounded-[32px] border border-white/10 bg-[#070b1c] p-8 shadow-[0_35px_120px_rgba(3,7,18,0.75)]">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-white/50">Recruiter Verification</p>
-              <h1 className="mt-3 text-3xl font-semibold">Your account is pending admin verification.</h1>
-              <p className="mt-3 max-w-2xl text-sm text-white/65">
-                Recruiter accounts must verify a company work email first. After that, an admin reviews the company profile before dashboard access is unlocked.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={logout}
-              className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10"
-            >
-              Sign out
-            </button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Company</p>
-              <p className="mt-2 text-xl font-semibold">{profile.company_name || 'Company profile'}</p>
-              <p className="mt-1 text-sm text-white/60">{profile.designation || 'Recruiter'}</p>
-              <p className="mt-1 text-sm text-white/60">{profile.work_email || profile.email}</p>
-              <p className="mt-1 text-sm text-white/60">{profile.industry || 'Industry not provided'} · {profile.company_size || 'Size not provided'}</p>
-              <p className="mt-1 text-sm text-white/60">{profile.company_location || 'Location not provided'}</p>
-              <p className="mt-3 text-sm text-white/70">{profile.company_description || 'Company description not provided.'}</p>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">Status</p>
-              <div className="mt-3 space-y-2 text-sm">
-                <p className={needsEmail ? 'text-amber-200' : 'text-emerald-200'}>
-                  Work email: {needsEmail ? 'Not verified' : 'Verified'}
-                </p>
-                <p className={profile.is_verified ? 'text-emerald-200' : 'text-amber-200'}>
-                  Admin approval: {profile.is_verified ? 'Approved' : 'Pending'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {needsEmail ? (
-            <form onSubmit={handleVerifyWorkEmailOtp} className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                <label className="flex-1 text-sm text-white/80">
-                  Work email OTP
-                  <input
-                    value={workEmailOtp}
-                    onChange={(event) => setWorkEmailOtp(event.target.value)}
-                    placeholder="Enter 6-digit code"
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-[#090f26] px-4 py-3 text-white outline-none focus:border-indigo-400"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={handleSendWorkEmailOtp}
-                  disabled={otpLoading}
-                  className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {otpLoading ? 'Sending...' : 'Send OTP'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={otpLoading}
-                  className="rounded-2xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Verify Email
-                </button>
-              </div>
-              <p className="mt-3 text-xs text-amber-100/80">
-                Personal email domains like Gmail, Yahoo, and Outlook are rejected for recruiter verification.
-              </p>
-            </form>
-          ) : (
-            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5 text-sm text-emerald-100">
-              Your work email is verified. Admin has been notified and will approve your recruiter account after review.
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#030616] via-[#050a1c] to-[#090f2a] text-white">
-      <FeedbackToast feedback={pageFeedback} onClose={() => setPageFeedback(null)} />
       <div className="flex min-h-screen">
         <aside className="hidden w-72 flex-shrink-0 flex-col border-r border-white/5 bg-[#050a1c]/80 px-6 py-8 backdrop-blur lg:flex">
           <div className="text-xl font-semibold tracking-wide">CareerLite</div>
@@ -1404,144 +1027,54 @@ export default function RecruiterDashboard() {
       </footer>
       {candidateModalOpen && selectedCandidate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[32px] border border-white/10 bg-[#050a1c] p-6 text-sm shadow-[0_20px_80px_rgba(3,4,14,0.8)]">
-            <div className="flex items-start justify-between gap-4 sticky top-0 bg-[#050a1c] pt-2 pb-4 z-10 border-b border-white/10">
+          <div className="w-full max-w-xl rounded-[32px] border border-white/10 bg-[#050a1c] p-6 text-sm shadow-[0_20px_80px_rgba(3,4,14,0.8)]">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Full Candidate Profile</p>
-                <h2 className="mt-2 text-2xl font-bold text-white">{selectedCandidate.name || 'Candidate profile'}</h2>
-                <p className="mt-1 text-sm text-indigo-300 font-medium">
-                  {selectedCandidate.degree || 'Degree'} • {selectedCandidate.major || 'Major'} • Class of {selectedCandidate.graduation_year || 'N/A'}
-                </p>
-                <p className="text-sm text-white/60">{selectedCandidate.uni || 'University'}</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Candidate details</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">{selectedCandidate.name || 'Candidate profile'}</h2>
+                <p className="mt-1 text-sm text-white/60">{selectedCandidate.uni}</p>
               </div>
-              <button type="button" onClick={closeCandidateModal} className="rounded-full border border-white/10 p-2 text-white/60 hover:bg-white/10 transition">
-                <X size={20} />
+              <button type="button" onClick={closeCandidateModal} className="rounded-full border border-white/10 p-1 text-white/60 hover:bg-white/10">
+                <X size={18} />
               </button>
             </div>
-
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
-              {/* AI METRICS */}
-              <div className="sm:col-span-2 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-center">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-indigo-200/70">VSPS Score</p>
-                  <p className="mt-1 text-2xl font-bold text-indigo-300">{formatVsps(selectedCandidate.vsps)}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/70">Verification</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-300">{selectedCandidate.verification || 'Verified'}</p>
-                </div>
-                <div className="rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 p-4 text-center">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-fuchsia-200/70">Accuracy</p>
-                  <p className="mt-1 text-xl font-bold text-fuchsia-300">{Math.round(selectedCandidate.assessment_accuracy * 100) || 0}%</p>
-                </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Verification level</p>
+                <p className="mt-2 text-sm text-white">{selectedCandidate.verification || 'Verified talent'}</p>
               </div>
-
-              {/* VERIFIED SKILLS */}
-              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <p className="text-xs uppercase tracking-[0.2em] font-semibold text-white/70">Verified Skills Only</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedCandidate.verified_skills || selectedCandidate.skills || []).map((skill) => (
-                    <span key={`vs-${skill}`} className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                      {skill} ✓
+              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">VSPS</p>
+                <p className="mt-2 text-sm text-white">{formatVsps(selectedCandidate.vsps)}</p>
+              </div>
+              <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-[#0b1129] p-4 text-white/80">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Top skills</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(selectedCandidate.skills || []).map((skill) => (
+                    <span key={`${selectedCandidate.id}-${skill}`} className="rounded-full border border-white/10 px-3 py-1 text-xs">
+                      {skill}
                     </span>
                   ))}
                 </div>
               </div>
-
-              {/* LINKS & CONTACT */}
-              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-3">Links & Profiles</p>
-                <div className="space-y-3">
-                  {selectedCandidate.github_link && (
-                    <a href={selectedCandidate.github_link} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
-                      <span>🔗 GitHub Profile</span>
-                    </a>
-                  )}
-                  {selectedCandidate.linkedin_link && (
-                    <a href={selectedCandidate.linkedin_link} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
-                      <span>🔗 LinkedIn Profile</span>
-                    </a>
-                  )}
-                  {!selectedCandidate.github_link && !selectedCandidate.linkedin_link && (
-                    <p className="text-sm text-white/40 italic">No links provided</p>
-                  )}
-                </div>
-              </div>
-
-              {/* DOCUMENTS */}
-              <div className="rounded-2xl border border-white/10 bg-[#0b1129] p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50 mb-3">Documents</p>
-                {selectedCandidate.resume_url ? (
-                  <a 
-                    href={selectedCandidate.resume_url} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-white/10 py-3 text-sm font-semibold text-white hover:bg-white/20 transition"
-                  >
-                    📄 View Resume
-                  </a>
-                ) : (
-                  <p className="text-sm text-white/40 italic mt-2">No resume uploaded</p>
-                )}
-              </div>
             </div>
-            <form onSubmit={handleInviteToApply} className="mt-6 space-y-4">
-              <label className="flex flex-col gap-2 text-white/80">
-                <span className="text-xs uppercase tracking-[0.3em] text-white/50">Select Internship</span>
-                <select
-                  value={selectedInternshipForInvite}
-                  onChange={(e) => setSelectedInternshipForInvite(e.target.value)}
-                  className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 focus:border-indigo-400 focus:outline-none"
-                  required
-                >
-                  <option value="" disabled>Choose an active internship</option>
-                  {internships.map(internship => (
-                    <option key={internship.id} value={internship.id}>{internship.title}</option>
-                  ))}
-                </select>
-              </label>
-              
-              <label className="flex flex-col gap-2 text-white/80">
-                <span className="text-xs uppercase tracking-[0.3em] text-white/50">Message (Optional)</span>
-                <textarea
-                  value={inviteMessage}
-                  onChange={(e) => setInviteMessage(e.target.value)}
-                  placeholder="We think you are a great fit for this role."
-                  className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 focus:border-indigo-400 focus:outline-none"
-                  rows={2}
-                />
-              </label>
-
-              {inviteFeedback && (
-                <p className={`mt-4 rounded-2xl border p-3 text-sm ${
-                  inviteFeedback.includes('successfully')
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
-                    : 'border-rose-500/30 bg-rose-500/10 text-rose-100'
-                }`}>
-                  {inviteFeedback}
-                </p>
-              )}
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  disabled={invitingLoading}
-                  className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(99,102,241,0.35)] disabled:opacity-50"
-                >
-                  {invitingLoading ? 'Sending...' : 'Send invitation'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeCandidateModal}
-                  className="flex-1 rounded-full border border-white/10 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+            {inviteFeedback && <p className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">{inviteFeedback}</p>}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleInviteToApply(selectedCandidate)}
+                className="flex-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(99,102,241,0.35)]"
+              >
+                Send invitation
+              </button>
+              <button
+                type="button"
+                onClick={closeCandidateModal}
+                className="flex-1 rounded-full border border-white/10 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1676,102 +1209,24 @@ export default function RecruiterDashboard() {
                 <X size={18} />
               </button>
             </div>
-            <div className="mt-6 max-h-[60vh] overflow-y-auto pr-2 space-y-4 text-white/80">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Company name</span>
-                  <input
-                    value={companyForm.company_name}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_name: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="e.g., Lumina Labs"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Your Designation</span>
-                  <input
-                    value={companyForm.designation}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, designation: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="e.g., Senior Recruiter"
-                  />
-                </label>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Website</span>
-                  <input
-                    type="url"
-                    value={companyForm.company_website}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_website: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="https://company.com"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">LinkedIn</span>
-                  <input
-                    type="url"
-                    value={companyForm.company_linkedin}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_linkedin: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="https://linkedin.com/company/..."
-                  />
-                </label>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Phone Number</span>
-                  <input
-                    value={companyForm.phone_number}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, phone_number: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="+1 234 567 8900"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Industry</span>
-                  <input
-                    value={companyForm.industry}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, industry: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                    placeholder="e.g., Software Tech"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">Company Size</span>
-                  <select
-                    value={companyForm.company_size}
-                    onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_size: e.target.value }))}
-                    className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                  >
-                    <option value="">Select size...</option>
-                    <option value="1-10">1-10 employees</option>
-                    <option value="11-50">11-50 employees</option>
-                    <option value="51-200">51-200 employees</option>
-                    <option value="201-500">201-500 employees</option>
-                    <option value="501-1000">501-1000 employees</option>
-                    <option value="1000+">1000+ employees</option>
-                  </select>
-                </label>
-              </div>
+            <div className="mt-6 space-y-4 text-white/80">
               <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.3em] text-white/50">HQ Location</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-white/50">Company name</span>
                 <input
-                  value={companyForm.company_location}
-                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_location: e.target.value }))}
+                  value={companyForm.company_name}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_name: e.target.value }))}
                   className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                  placeholder="e.g., San Francisco, CA"
+                  placeholder="e.g., Lumina Labs"
                 />
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-xs uppercase tracking-[0.3em] text-white/50">Company Description</span>
-                <textarea
-                  value={companyForm.company_description}
-                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_description: e.target.value }))}
+                <span className="text-xs uppercase tracking-[0.3em] text-white/50">Company website</span>
+                <input
+                  type="url"
+                  value={companyForm.company_website}
+                  onChange={(e) => setCompanyForm((prev) => ({ ...prev, company_website: e.target.value }))}
                   className="rounded-2xl border border-white/15 bg-[#070c1f] px-4 py-3 text-white focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-                  placeholder="What does your company do?"
-                  rows={3}
+                  placeholder="https://company.com"
                 />
               </label>
             </div>

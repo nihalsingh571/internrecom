@@ -1,41 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ShieldCheck, Zap, TrendingUp, Clock8, ArrowUpRight, LineChart, Activity, Bell, Building, Clock, MapPin, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Sparkles, ShieldCheck, Zap, TrendingUp, Clock8, ArrowUpRight, LineChart, Activity } from 'lucide-react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
-
-const percent = (value) => Math.round(Number(value || 0) * 100);
-
-const formatVsps = (value) => {
-    const score = Number(value || 0) * 100;
-    return Number.isInteger(score) ? String(score) : score.toFixed(1);
-};
-
-const skillName = (skill) => {
-    if (typeof skill === 'string') return skill;
-    if (skill && typeof skill === 'object') return skill.name || skill.label || skill.skill || '';
-    return '';
-};
-
-const timeAgo = (timestamp) => {
-    if (!timestamp) return 'Recently';
-    const diffMs = Date.now() - new Date(timestamp).getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours < 1) return 'Just now';
-    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
-};
 
 export default function StudentHome() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [profile, setProfile] = useState(null);
     const [internships, setInternships] = useState([]);
-    const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [eligibility, setEligibility] = useState(null);
 
     useEffect(() => {
         const fetchRecommendedInternships = async () => {
@@ -53,18 +28,14 @@ export default function StudentHome() {
 
         const fetchData = async () => {
             try {
-                const profileRes = await API.get('/api/applicants/me/').catch(() => null);
+                const [profileRes, internshipsData] = await Promise.all([
+                    API.get('/api/applicants/me/').catch(() => null),
+                    fetchRecommendedInternships(),
+                ]);
                 if (profileRes?.data) {
                     setProfile(profileRes.data);
-                    setEligibility(profileRes.data.eligibility || null);
                 }
-                const canUseAdvanced = Boolean(profileRes?.data?.eligibility?.is_eligible_for_assessments);
-                const [internshipsData, applicationsRes] = await Promise.all([
-                    canUseAdvanced ? fetchRecommendedInternships() : Promise.resolve([]),
-                    API.get('/api/applications/').catch(() => ({ data: [] })),
-                ]);
                 setInternships(internshipsData);
-                setApplications(applicationsRes.data || []);
             } catch (err) {
                 console.error('Failed to fetch student dashboard data', err);
             } finally {
@@ -76,14 +47,8 @@ export default function StudentHome() {
     }, []);
 
     const vspsScore = Number(profile?.vsps_score || 0);
-    const formattedScore = formatVsps(vspsScore);
+    const formattedScore = vspsScore ? Math.round(vspsScore * 1000) / 10 : 0;
     const featured = internships.slice(0, 3);
-    const skills = Array.isArray(profile?.skills) ? profile.skills : [];
-    const verifiedSkills = skills.filter((skill) => {
-        if (typeof skill === 'string') return false;
-        return (skill?.status || '').toLowerCase() === 'verified';
-    });
-    const pendingSkills = skills.filter((skill) => !verifiedSkills.includes(skill));
     const verificationLevel = useMemo(() => {
         if (vspsScore >= 0.9) return 'Level 5';
         if (vspsScore >= 0.7) return 'Level 4';
@@ -93,68 +58,12 @@ export default function StudentHome() {
     }, [vspsScore]);
     const matchesCount = internships.length;
     const verificationProgress = Math.min(100, Math.round(vspsScore * 100));
-    const accuracyPct = percent(profile?.assessment_accuracy);
-    const speedPct = percent(profile?.assessment_speed_score);
-    const focusedPct = Math.round(Number(profile?.integrity_factor ?? 1) * 100);
-    const priorityLeads = internships.filter((internship) => {
-        const score = Number(internship?.recommendation?.final_score || internship?.match_score || 0);
-        return score >= 0.75 || internship?.application_eligibility?.can_apply === true;
-    }).length;
-    const activeApplications = applications.filter((application) => ['PENDING', 'REVIEWED'].includes(application.status)).length;
-    const reviewedApplications = applications.filter((application) => application.status && application.status !== 'PENDING').length;
-    const topSkill = verifiedSkills.map(skillName).find(Boolean) || skills.map(skillName).find(Boolean) || profile?.interested_role || 'your selected role';
-    const performanceBand = vspsScore >= 0.9 ? 'Top tier' : vspsScore >= 0.75 ? 'Strong' : vspsScore >= 0.6 ? 'Competitive' : vspsScore > 0 ? 'Developing' : 'No assessment yet';
+    const accuracyPct = Math.round((profile?.assessment_accuracy || 0) * 100);
+    const speedPct = Math.round((profile?.assessment_speed_score || 0) * 100);
+    const skipPct = Math.max(0, 100 - Math.round((profile?.assessment_skip_penalty || 0) * 100));
     const hintText =
         profile?.headline ||
-        (isNaN(vspsScore) || vspsScore === 0
-            ? 'Complete a skill assessment to generate your live VSPS, verification level, and AI matches.'
-            : `Your latest verified skill signal is ${verificationProgress}% with ${verifiedSkills.length} certified skill${verifiedSkills.length === 1 ? '' : 's'}.`);
-    const isEligible = Boolean(eligibility?.is_eligible_for_assessments);
-    const missingFields = eligibility?.missing_fields || [];
-    const latestApplication = applications[0];
-    const latestMatch = featured[0];
-
-    const stats = [
-        {
-            label: 'VSPS Score',
-            value: formattedScore,
-            helper: `${performanceBand}${topSkill ? ` in ${topSkill}` : ''}`,
-            icon: TrendingUp,
-            footer: vspsScore > 0 ? 'Latest completed assessment result' : 'Take an assessment to calculate VSPS',
-        },
-        {
-            label: 'Verification',
-            value: verificationLevel,
-            helper: `${verifiedSkills.length} skill${verifiedSkills.length === 1 ? '' : 's'} certified`,
-            icon: ShieldCheck,
-            footer: `${pendingSkills.length} skill${pendingSkills.length === 1 ? '' : 's'} pending verification`,
-        },
-        {
-            label: 'AI Matches',
-            value: matchesCount,
-            helper: `${matchesCount === 1 ? 'New curated internship' : 'New curated internships'}`,
-            icon: Zap,
-            footer: `${priorityLeads} priority lead${priorityLeads === 1 ? '' : 's'}`,
-        },
-    ];
-
-    const assessmentStats = [
-        {
-            label: 'Assessment accuracy',
-            value: `${accuracyPct}%`,
-            helper: accuracyPct > 0 ? 'Correct answers across the latest attempt' : 'No completed assessment yet',
-        },
-        {
-            label: 'Speed score',
-            value: `${speedPct}%`,
-            helper: speedPct > 0 ? 'Average response time advantage' : 'Speed score appears after assessment submission',
-        },
-        {
-            label: 'Focused session',
-            value: `${focusedPct}%`,
-            helper: focusedPct >= 100 ? 'Questions answered without violations' : 'Integrity score from the latest session',
-        },
-    ];
+        `Your skill verification is ${verificationProgress}% complete. Keep pushing for premium matches.`;
 
     const growthSeries = useMemo(
         () => [
@@ -185,36 +94,26 @@ export default function StudentHome() {
     const marketPath = buildPath(growthSeries.map((point) => point.market));
 
     const recentActivity = [
-        latestMatch
+        featured[0]
             ? {
-                  title: `New AI matching: ${latestMatch.title}`,
-                  time: timeAgo(latestMatch.created_at),
-                  badge: latestMatch.recommendation?.final_score
-                      ? `${Math.round(latestMatch.recommendation.final_score * 100)}% match`
-                      : 'Recommended',
+                  title: `New AI matching: ${featured[0].title}`,
+                  time: '2 hours ago',
+                  badge: `${Math.round(featured[0].match_score || 84)}% match`,
               }
             : {
-                  title: verifiedSkills.length ? `${verifiedSkills.length} verified skills synced` : 'No verified skills yet',
-                  time: 'Live',
-                  badge: verifiedSkills.length ? 'Verified' : 'Pending',
-              },
-        latestApplication
-            ? {
-                  title: `Application ${latestApplication.status?.toLowerCase() || 'submitted'}`,
-                  time: timeAgo(latestApplication.applied_at),
-                  badge: latestApplication.status || 'PENDING',
-              }
-            : {
-                  title: 'No applications submitted yet',
-                  time: 'Live',
-                  badge: `${activeApplications} active`,
+                  title: 'Machine Learning assessment completed',
+                  time: 'Yesterday',
+                  badge: 'Verified',
               },
         {
-            title: verifiedSkills.length
-                ? `Skill sync: ${verifiedSkills.map(skillName).filter(Boolean).slice(0, 2).join(' + ')}`
-                : 'Skill sync pending',
-            time: 'Live',
-            badge: verifiedSkills.length ? `${verifiedSkills.length} certified` : `${pendingSkills.length} pending`,
+            title: 'Applied to Product Design Internship',
+            time: '2 days ago',
+            badge: 'Under review',
+        },
+        {
+            title: 'Skill sync: Python + React updated',
+            time: '4 days ago',
+            badge: '+2 skills',
         },
     ];
 
@@ -223,7 +122,7 @@ export default function StudentHome() {
     const quickActions = [
         {
             title: 'Upcoming Deadlines',
-            description: `${activeApplications} active, ${reviewedApplications} reviewed`,
+            description: `${Math.min(3, matchesCount)} applications ending soon`,
             action: 'View timeline',
             onClick: () => navigate('/student/applications'),
             color: 'from-indigo-600/80 to-indigo-500/40',
@@ -231,9 +130,9 @@ export default function StudentHome() {
         },
         {
             title: 'Skill Blitz',
-            description: isEligible ? 'Quick 5-min AI challenge' : 'Complete profile verification first',
-            action: isEligible ? 'Start challenge' : 'Complete profile',
-            onClick: () => navigate(isEligible ? '/student/assessment' : '/student/profile'),
+            description: 'Quick 5-min AI challenge',
+            action: 'Start challenge',
+            onClick: () => navigate('/student/assessment'),
             color: 'from-purple-600/80 to-fuchsia-500/40',
             icon: Zap,
         },
@@ -250,21 +149,9 @@ export default function StudentHome() {
     return (
         <div className="min-h-[calc(100vh-120px)] bg-transparent text-white">
             <div className="space-y-8">
-                {!isEligible && (
-                    <section className="rounded-[28px] border border-amber-400/20 bg-amber-400/10 p-5 text-amber-50">
-                        <p className="font-semibold">Advanced features are locked until your profile is complete and college email is verified.</p>
-                        {missingFields.length ? <p className="mt-2 text-sm">Missing: {missingFields.join(', ')}</p> : null}
-                        {!eligibility?.college_email_verified ? <p className="mt-1 text-sm">College email verification is required.</p> : null}
-                        <button
-                            type="button"
-                            onClick={() => navigate('/student/profile')}
-                            className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-semibold text-[#2d1f9b]"
-                        >
-                            Complete profile
-                        </button>
-                    </section>
-                )}
-                <section
+                <motion.section
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="rounded-[28px] bg-gradient-to-r from-[#3d2bff] via-[#7b2bff] to-[#c629ff] p-8 shadow-[0_35px_90px_rgba(64,33,155,0.5)]"
                 >
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -314,19 +201,39 @@ export default function StudentHome() {
                                 <LineChart className="h-8 w-8 text-white" />
                             </div>
                             <p className="mt-4 text-xs uppercase tracking-[0.35em] text-white/70">AI Engine</p>
-                            <p className="mt-2 text-xl font-semibold text-white">
-                                {verifiedSkills.length ? 'Skill sync active' : 'Skill sync pending'}
-                            </p>
+                            <p className="mt-2 text-xl font-semibold text-white">Skill sync active</p>
                             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-1 text-xs text-white/80">
                                 <Activity size={14} />
-                                Integrity {focusedPct}%
+                                Monitoring violations
                             </div>
                         </div>
                     </div>
-                </section>
+                </motion.section>
 
                 <section className="grid gap-4 md:grid-cols-3">
-                    {stats.map((stat) => (
+                    {[
+                        {
+                            label: 'VSPS Score',
+                            value: formattedScore || 0,
+                            helper: 'Top 5% in React Development',
+                            icon: TrendingUp,
+                            footer: '+12 pts this week',
+                        },
+                        {
+                            label: 'Verification',
+                            value: verificationLevel,
+                            helper: `${Math.max(1, Math.round((profile?.skills?.length || 3) * 1.2))} skills certified`,
+                            icon: ShieldCheck,
+                            footer: 'Security layer synced',
+                        },
+                        {
+                            label: 'AI Matches',
+                            value: matchesCount,
+                            helper: 'New curated internships',
+                            icon: Zap,
+                            footer: '3 priority leads',
+                        },
+                    ].map((stat) => (
                         <div key={stat.label} className="rounded-3xl border border-white/10 bg-[#0c1024] p-6 shadow-[0_25px_80px_rgba(3,7,18,0.6)]">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -344,13 +251,21 @@ export default function StudentHome() {
                 </section>
 
                 <section className="grid gap-4 md:grid-cols-3">
-                    {assessmentStats.map((stat) => (
-                        <div key={stat.label} className="rounded-3xl border border-white/10 bg-[#070c1f] p-6 shadow-[0_20px_70px_rgba(5,7,19,0.65)]">
-                            <p className="text-xs uppercase tracking-[0.35em] text-white/50">{stat.label}</p>
-                            <p className="mt-3 text-4xl font-semibold text-white">{stat.value}</p>
-                            <p className="mt-1 text-sm text-white/60">{stat.helper}</p>
-                        </div>
-                    ))}
+                    <div className="rounded-3xl border border-white/10 bg-[#070c1f] p-6 shadow-[0_20px_70px_rgba(5,7,19,0.65)]">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/50">Assessment accuracy</p>
+                        <p className="mt-3 text-4xl font-semibold text-white">{accuracyPct}%</p>
+                        <p className="mt-1 text-sm text-white/60">Correct answers across the latest attempt</p>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-[#070c1f] p-6 shadow-[0_20px_70px_rgba(5,7,19,0.65)]">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/50">Speed score</p>
+                        <p className="mt-3 text-4xl font-semibold text-white">{speedPct}%</p>
+                        <p className="mt-1 text-sm text-white/60">Average response time advantage</p>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-[#070c1f] p-6 shadow-[0_20px_70px_rgba(5,7,19,0.65)]">
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/50">Focused session</p>
+                        <p className="mt-3 text-4xl font-semibold text-white">{skipPct}%</p>
+                        <p className="mt-1 text-sm text-white/60">Questions answered without violations</p>
+                    </div>
                 </section>
 
                 <section className="grid gap-6 lg:grid-cols-3">

@@ -87,36 +87,6 @@ spec:
                 secretKeyRef:
                   name: internconnect-secrets
                   key: GEMINI_API_KEY
-            - name: EMAIL_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: EMAIL_HOST
-            - name: EMAIL_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: EMAIL_PORT
-            - name: EMAIL_USE_TLS
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: EMAIL_USE_TLS
-            - name: EMAIL_HOST_USER
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: EMAIL_HOST_USER
-            - name: EMAIL_HOST_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: EMAIL_HOST_PASSWORD
-            - name: DEFAULT_FROM_EMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: internconnect-secrets
-                  key: DEFAULT_FROM_EMAIL
           readinessProbe:
             httpGet:
               path: /admin/login/

@@ -1,9 +1,9 @@
 """Gemini AI question generator with adaptive difficulty.
 
 Implements the Gemini Adaptive Questioning enhancement (proposal §7):
-- 'easy'   → job-ready fundamentals for students who struggled previously
-- 'medium' → applied, scenario-based questions for first attempts and normal attempts
-- 'hard'   → complex, multi-step scenario questions (accuracy > 0.75)
+- 'easy'   → beginner/conceptual questions (accuracy < 0.50 or first attempt)
+- 'medium' → applied, scenario-based questions (0.50 ≤ accuracy ≤ 0.80)
+- 'hard'   → complex, multi-step scenario questions (accuracy > 0.80)
 
 Usage:
     from .gemini_generator import generate_questions_with_gemini, determine_next_difficulty
@@ -25,8 +25,9 @@ def determine_next_difficulty(last_accuracy: float) -> DifficultyLevel:
     """Return the adaptive difficulty level for the next assessment.
 
     Proposal §7 Difficulty Adaptation Logic:
-        accuracy > 0.75  → 'hard'   (harder, scenario-based, higher VSPS weight)
-        otherwise        → 'medium' (job-ready applied scenarios)
+        accuracy > 0.80  → 'hard'   (harder, scenario-based, higher VSPS weight)
+        accuracy < 0.50  → 'easy'   (easier, conceptual fundamentals)
+        otherwise        → 'medium' (applied scenarios)
 
     Args:
         last_accuracy: Candidate's accuracy score from the last assessment (0–1).
@@ -34,8 +35,10 @@ def determine_next_difficulty(last_accuracy: float) -> DifficultyLevel:
     Returns:
         Difficulty level string: 'easy', 'medium', or 'hard'.
     """
-    if last_accuracy > 0.75:
+    if last_accuracy > 0.80:
         return 'hard'
+    if last_accuracy < 0.50:
+        return 'easy'
     return 'medium'
 
 
@@ -43,23 +46,19 @@ def _build_difficulty_prompt(skill_name: str, difficulty: DifficultyLevel) -> st
     """Build a Gemini prompt tailored to the requested difficulty level."""
     difficulty_instructions: Dict[DifficultyLevel, str] = {
         'easy': (
-            "Generate 10 JOB-READY FUNDAMENTALS multiple choice questions. "
-            "These are not beginner definition checks. The candidate is a college student declaring this skill for internships/jobs. "
-            "Ask practical questions about debugging, code behavior, common mistakes, APIs, data flow, and implementation choices. "
-            "Keep them fair for a student, but require real working knowledge."
+            "Generate 10 BEGINNER-LEVEL multiple choice questions. "
+            "Focus on fundamental concepts, definitions, and basic usage. "
+            "Avoid complex scenarios or advanced features."
         ),
         'medium': (
-            "Generate 10 INTERNSHIP/JOB-READY multiple choice questions. "
-            "The candidate claims they know this skill and is ready for work. "
-            "Use realistic scenarios, code/output reasoning where relevant, debugging cases, performance/security trade-offs, "
-            "framework/library behavior, and production-style decisions. "
-            "Avoid trivia, simple definitions, and beginner syntax questions."
+            "Generate 10 INTERMEDIATE-LEVEL multiple choice questions. "
+            "Include applied, scenario-based questions that require practical understanding. "
+            "Mix conceptual questions with realistic use-case scenarios."
         ),
         'hard': (
             "Generate 10 ADVANCED-LEVEL multiple choice questions. "
-            "Focus on complex, multi-step scenarios, edge cases, concurrency/state issues, performance trade-offs, "
-            "security implications, scalability, testing, and architectural decisions. "
-            "Questions should challenge strong internship/job candidates."
+            "Focus on complex, multi-step scenarios, edge cases, performance trade-offs, "
+            "and architectural decisions. Questions should challenge experienced practitioners."
         ),
     }
 
@@ -82,18 +81,13 @@ Rules:
 * exactly 4 options each
 * correct_option must be index 0-3
 * questions must test {difficulty}-level knowledge of {skill_name}
-* assume the student has declared {skill_name} as a real skill and is being screened for internship/job readiness
-* prefer scenario-based and code-behavior questions over definitions
-* include plausible distractors that reveal common misconceptions
-* avoid obvious options like "all of the above", "none of the above", joke answers, or unrelated choices
-* for programming skills, include at least 4 questions involving code snippets, outputs, bugs, API behavior, or implementation decisions
 * ensure correct_option points to the correct answer
 * do NOT include markdown or code fences in the response — raw JSON only"""
 
 
 def generate_questions_with_gemini(
     skill_name: str,
-    difficulty: DifficultyLevel = 'medium',
+    difficulty: DifficultyLevel = 'easy',
 ) -> List[Dict[str, Any]]:
     """Generate 10 MCQ questions for a skill using Gemini AI.
 
@@ -164,7 +158,7 @@ def generate_questions_with_gemini(
 
 def generate_default_questions(
     skill_name: str,
-    difficulty: DifficultyLevel = 'medium',
+    difficulty: DifficultyLevel = 'easy',
 ) -> List[Dict[str, Any]]:
     """Generate 10 fallback MCQ questions when Gemini is unavailable.
 
@@ -282,56 +276,56 @@ def generate_default_questions(
                 "correct_option": 0,
             },
         ]
-    else:  # easy / default still tests job-ready fundamentals, not definitions
+    else:  # easy / default
         templates = [
             {
-                "text": f"A teammate says their {skill_name} implementation works locally but fails in production. What should you check first?",
-                "options": ["Configuration, logs, inputs, and environment differences", "Only the UI color palette", "The project README title", "Whether the laptop is fully charged"],
+                "text": f"What is a fundamental concept in {skill_name}?",
+                "options": [f"Core principle of {skill_name}", "Unrelated technology", "Hardware component", "Network protocol"],
                 "correct_option": 0,
             },
             {
-                "text": f"When reviewing {skill_name} code for an internship project, what is the strongest sign of maintainability?",
-                "options": ["Clear structure, tests, meaningful names, and handled edge cases", "Everything in one large function", "No comments or tests anywhere", "Hardcoded credentials for speed"],
+                "text": f"Which of the following is essential for {skill_name}?",
+                "options": [f"Basic knowledge of {skill_name}", "Advanced mathematics", "Graphic design", "Music theory"],
                 "correct_option": 0,
             },
             {
-                "text": f"In {skill_name}, why is input validation important before processing user data?",
-                "options": ["It prevents invalid state, crashes, and security issues", "It makes code longer with no benefit", "It replaces the need for testing", "It only matters after deployment"],
+                "text": f"What role does {skill_name} play in software development?",
+                "options": ["Important technical skill", "Marketing tool", "Legal framework", "Financial planning"],
                 "correct_option": 0,
             },
             {
-                "text": f"A {skill_name} feature is slow for large inputs. What is the best engineering response?",
-                "options": ["Profile the bottleneck, inspect complexity, and optimize the hot path", "Rewrite everything immediately", "Ignore it if small inputs work", "Add a loading spinner only"],
+                "text": f"Which statement best describes {skill_name}?",
+                "options": [f"A key technology in {skill_name} domain", "A type of database", "A programming language", "A web browser"],
                 "correct_option": 0,
             },
             {
-                "text": f"What should a job-ready student know when using {skill_name} in a team project?",
-                "options": ["How to integrate it safely with version control, tests, and deployment constraints", "Only how to install it once", "Only the logo and release year", "Only how to copy snippets without reading them"],
+                "text": f"What is the primary purpose of {skill_name}?",
+                "options": [f"To provide {skill_name} functionality", "To create graphics", "To manage emails", "To play videos"],
                 "correct_option": 0,
             },
             {
-                "text": f"A bug in {skill_name} appears only for empty or null data. What does this indicate?",
-                "options": ["Missing edge-case handling", "A compiler problem only", "A styling issue", "A network outage every time"],
+                "text": f"Which component is crucial in {skill_name}?",
+                "options": [f"Core {skill_name} element", "Printer device", "Mouse input", "Speaker output"],
                 "correct_option": 0,
             },
             {
-                "text": f"Why should {skill_name} changes be covered by tests before submitting a pull request?",
-                "options": ["Tests catch regressions and document expected behavior", "Tests are only for senior engineers", "Tests make deployments impossible", "Tests replace code review completely"],
+                "text": f"How is {skill_name} typically used?",
+                "options": ["In technical applications", "For cooking recipes", "In sports", "For gardening"],
                 "correct_option": 0,
             },
             {
-                "text": f"If two valid {skill_name} approaches exist, what should guide the choice?",
-                "options": ["Requirements, readability, performance, reliability, and team conventions", "Whichever is shortest always", "Whichever is newest always", "Random selection"],
+                "text": f"What makes {skill_name} important?",
+                "options": ["Its technical significance", "Its color", "Its size", "Its weight"],
                 "correct_option": 0,
             },
             {
-                "text": f"What is a practical way to debug incorrect output in {skill_name}?",
-                "options": ["Reproduce the case, inspect inputs/intermediate values, and isolate the failing step", "Delete unrelated files", "Change variable names only", "Restart until it works"],
+                "text": f"Which of these relates to {skill_name}?",
+                "options": [f"{skill_name} concepts", "Weather patterns", "Animal species", "Car models"],
                 "correct_option": 0,
             },
             {
-                "text": f"Which habit best shows real readiness in {skill_name}?",
-                "options": ["Explaining trade-offs and writing working, reviewable code", "Memorizing only definitions", "Avoiding documentation", "Never testing assumptions"],
+                "text": f"What should beginners learn first in {skill_name}?",
+                "options": ["Basic fundamentals", "Advanced techniques", "Historical background", "Future trends"],
                 "correct_option": 0,
             },
         ]

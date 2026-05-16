@@ -21,13 +21,13 @@ def generate_skill_questions(sender, instance, created, **kwargs):
         try:
             # Try to generate questions with Gemini
             logger.info(f"Generating questions with Gemini for skill: {instance.name}")
-            questions = generate_questions_with_gemini(instance.name, difficulty='medium')
+            questions = generate_questions_with_gemini(instance.name)
             generation_method = "AI"
         except Exception as e:
             # Fallback to default questions
             logger.warning(f"Gemini generation failed for skill {instance.name}: {e}")
             logger.info(f"Using fallback question generation for skill: {instance.name}")
-            questions = generate_default_questions(instance.name, difficulty='medium')
+            questions = generate_default_questions(instance.name)
             generation_method = "fallback"
 
         # Save questions to database

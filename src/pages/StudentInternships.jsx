@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import API from '../services/api'
 import {
   Filter,
@@ -50,13 +51,6 @@ const normalizeList = (value) => {
   return []
 }
 
-const getApplicationEligibility = (internship) => internship?.application_eligibility || {
-  can_apply: false,
-  missing_required_skills: [],
-  verified_skills: [],
-  message: 'Skill verification status is unavailable. Refresh internships and try again.',
-}
-
 const CompanyLogo = () => (
   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 shadow-inner shadow-black/20">
     <Building2 size={28} className="text-white/60" />
@@ -65,13 +59,10 @@ const CompanyLogo = () => (
 
 export default function StudentInternships() {
   const navigate = useNavigate()
-  const location = useLocation()
   const [internships, setInternships] = useState([])
   const [loading, setLoading] = useState(true)
-  const [isEligible, setIsEligible] = useState(false)
-  const [eligibility, setEligibility] = useState(null)
-  const [searchRole, setSearchRole] = useState(location.state?.searchRole || '')
-  const [searchCompany, setSearchCompany] = useState(location.state?.searchCompany || '')
+  const [isVerified, setIsVerified] = useState(false)
+  const [search, setSearch] = useState('')
   const [selectedInternship, setSelectedInternship] = useState(null)
   const [savedIds, setSavedIds] = useState(new Set())
   const [refreshing, setRefreshing] = useState(false)
@@ -79,9 +70,8 @@ export default function StudentInternships() {
   const fetchData = useCallback(async (forceRefresh = false) => {
     try {
       const profileRes = await API.get('/api/applicants/me/').catch(() => null)
-      const eligible = Boolean(profileRes?.data?.eligibility?.is_eligible_for_assessments)
-      setIsEligible(eligible)
-      setEligibility(profileRes?.data?.eligibility || null)
+      const verified = Boolean(profileRes?.data?.vsps_score > 0.0)
+      setIsVerified(verified)
 
       const fetchRecommendations = async () => {
         try {
@@ -98,7 +88,7 @@ export default function StudentInternships() {
         }
       }
 
-      if (eligible) {
+      if (verified) {
         const data = await fetchRecommendations()
         setInternships(data)
       } else {
@@ -118,52 +108,33 @@ export default function StudentInternships() {
   }, [fetchData])
 
   const filteredInternships = useMemo(() => {
-    const roleTerm = searchRole.trim().toLowerCase()
-    const companyTerm = searchCompany.trim().toLowerCase()
-    
-    if (!roleTerm && !companyTerm) return internships
-    
+    const term = search.trim().toLowerCase()
+    if (!term) return internships
     return internships.filter((internship) => {
-      const title = (internship.title || '').toLowerCase()
       const companyName = (internship.recruiter?.company_name || internship.company_name || '').toLowerCase()
-      
-      const matchRole = !roleTerm || title.includes(roleTerm) || (internship.description || '').toLowerCase().includes(roleTerm)
-      const matchCompany = !companyTerm || companyName.includes(companyTerm)
-      
-      return matchRole && matchCompany
+      const location = (internship.location || '').toLowerCase()
+      const description = (internship.description || '').toLowerCase()
+      const skills = Array.isArray(internship.required_skills) ? internship.required_skills.join(' ').toLowerCase() : ''
+      const matchedSkills = (internship.recommendation?.skills_matched || []).join(' ').toLowerCase()
+      const haystack = [
+        internship.title?.toLowerCase() || '',
+        companyName,
+        location,
+        description,
+        skills,
+        matchedSkills,
+      ].join(' ')
+      return haystack.includes(term)
     })
-  }, [internships, searchRole, searchCompany])
+  }, [internships, search])
 
-  const goToAssessment = (skills = []) => {
-    const cleanSkills = skills.map((skill) => String(skill).trim()).filter(Boolean)
-    navigate('/student/assessment', cleanSkills.length ? { state: { skills: cleanSkills } } : undefined)
-  }
-
-  const handleApply = async (internship) => {
-    const eligibilityStatus = getApplicationEligibility(internship)
-    const missingRequiredSkills = eligibilityStatus.missing_required_skills || []
-
-    if (eligibilityStatus.can_apply === false) {
-      if (missingRequiredSkills.length) {
-        alert(`Verify these required skills before applying: ${missingRequiredSkills.join(', ')}`)
-        goToAssessment(missingRequiredSkills)
-      } else {
-        alert(eligibilityStatus.message || 'Complete eligibility requirements before applying.')
-      }
-      return
-    }
-
+  const handleApply = async (internshipId) => {
     try {
-      await API.post(`/api/internships/${internship.id}/apply/`)
+      await API.post(`/api/internships/${internshipId}/apply/`)
       alert('Application submitted successfully!')
-      fetchData()
     } catch (error) {
-      const responseData = error.response?.data || {}
-      if (responseData.missing_required_skills?.length) {
-        alert(`Verify these required skills before applying: ${responseData.missing_required_skills.join(', ')}`)
-        goToAssessment(responseData.missing_required_skills)
-      } else if (responseData.error) {
-        alert(responseData.error)
+      if (error.response?.data?.error) {
+        alert(error.response.data.error)
       } else {
         alert('Failed to apply. Please try again.')
       }
@@ -181,30 +152,21 @@ export default function StudentInternships() {
 
   if (loading) return <div className="text-center text-white">Loading...</div>
 
-  if (!isEligible) {
-    const missing = eligibility?.missing_fields || []
+  if (!isVerified) {
     return (
       <div className="rounded-3xl border border-white/10 bg-[#090d1d] p-10 text-center text-white shadow-[0_20px_80px_rgba(3,7,18,0.6)]">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-2xl">🔒</div>
         <h2 className="text-2xl font-semibold">Internships locked</h2>
-        <p className="mt-2 text-sm text-white/60">
-          Complete your profile, verify your college email, add skills, and upload your resume before applying.
-        </p>
-        {missing.length ? <p className="mt-3 text-xs text-amber-200">Missing: {missing.join(', ')}</p> : null}
-        {!eligibility?.college_email_verified ? <p className="mt-1 text-xs text-amber-200">College email verification is required.</p> : null}
+        <p className="mt-2 text-sm text-white/60">Complete at least one skill assessment to unlock curated AI recommendations.</p>
         <button
-          onClick={() => navigate('/student/profile')}
+          onClick={() => navigate('/student/assessment')}
           className="mt-6 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-6 py-3 text-sm font-semibold text-white"
         >
-          Complete profile
+          Take assessment
         </button>
       </div>
     )
   }
-
-  const selectedApplicationEligibility = getApplicationEligibility(selectedInternship)
-  const selectedMissingRequiredSkills = selectedApplicationEligibility.missing_required_skills || []
-  const selectedCanApply = selectedApplicationEligibility.can_apply === true && !selectedInternship?.application_status
 
   return (
     <div className="space-y-8 text-white">
@@ -219,21 +181,12 @@ export default function StudentInternships() {
           </div>
           <div className="flex flex-1 flex-wrap gap-3">
             <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70">
-              <Briefcase size={16} />
+              <Filter size={16} />
               <input
-                value={searchRole}
-                onChange={(e) => setSearchRole(e.target.value)}
-                placeholder="Filter by role..."
-                className="bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none w-32 md:w-auto"
-              />
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70">
-              <Building2 size={16} />
-              <input
-                value={searchCompany}
-                onChange={(e) => setSearchCompany(e.target.value)}
-                placeholder="Filter by company..."
-                className="bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none w-32 md:w-auto"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search role or company"
+                className="bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
               />
             </div>
             <button
@@ -260,21 +213,18 @@ export default function StudentInternships() {
           filteredInternships.map((internship) => {
             const score = internship.recommendation ? Math.round((internship.recommendation.final_score || 0) * 100) : null
             const skillsMatched = internship.recommendation?.skills_matched || []
-            const applicationEligibility = getApplicationEligibility(internship)
-            const missingRequiredSkills = applicationEligibility.missing_required_skills || []
-            const skillsMissing = missingRequiredSkills.length
-              ? missingRequiredSkills
-              : internship.recommendation?.skills_missing || []
+            const skillsMissing = internship.recommendation?.skills_missing || []
             const badge = score !== null ? matchBadge(score) : null
             const status = internship.application_status
-            const canApply = applicationEligibility.can_apply === true && !status
             const coreSkills = Array.isArray(internship.required_skills)
               ? internship.required_skills.slice(0, 4)
               : skillsMatched.slice(0, 4)
             const companyName = internship.recruiter?.company_name || internship.company_name || 'Partner company'
             return (
-              <div
+              <motion.div
                 key={internship.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
                 className="flex flex-col rounded-3xl border border-white/10 bg-[#090f26] p-6 shadow-[0_25px_70px_rgba(3,7,18,0.65)]"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -350,20 +300,6 @@ export default function StudentInternships() {
                   </div>
                 </div>
 
-                {missingRequiredSkills.length ? (
-                  <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                      <div>
-                        <p className="font-semibold">Required skill verification needed</p>
-                        <p className="mt-1 text-amber-100/80">
-                          Verify {missingRequiredSkills.join(', ')} before applying to this role.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button
                     onClick={() => setSelectedInternship(internship)}
@@ -372,11 +308,10 @@ export default function StudentInternships() {
                     View details
                   </button>
                   <button
-                    onClick={() => (canApply ? handleApply(internship) : goToAssessment(missingRequiredSkills))}
-                    disabled={Boolean(status) || (!canApply && missingRequiredSkills.length === 0)}
-                    className="rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(99,102,241,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => handleApply(internship.id)}
+                    className="rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(99,102,241,0.35)] transition hover:brightness-110"
                   >
-                    {status ? 'Applied' : canApply ? 'Apply now' : 'Verify skills'}
+                    Apply now
                   </button>
                   <button
                     type="button"
@@ -387,7 +322,7 @@ export default function StudentInternships() {
                     {savedIds.has(internship.id) ? 'Saved' : 'Save'}
                   </button>
                 </div>
-              </div>
+              </motion.div>
             )
           })
         )}
@@ -498,19 +433,6 @@ export default function StudentInternships() {
                           <AlertTriangle size={16} /> {skill}
                         </div>
                       ))}
-                    </div>
-                  </div>
-                ) : null}
-                {selectedMissingRequiredSkills.length ? (
-                  <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
-                    <div className="flex gap-2">
-                      <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                      <div>
-                        <p className="font-semibold">Application locked</p>
-                        <p className="mt-1 text-amber-100/80">
-                          Required skills still need verification: {selectedMissingRequiredSkills.join(', ')}.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -668,18 +590,12 @@ export default function StudentInternships() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedCanApply) {
-                      handleApply(selectedInternship)
-                      setSelectedInternship(null)
-                    } else {
-                      setSelectedInternship(null)
-                      goToAssessment(selectedMissingRequiredSkills)
-                    }
+                    handleApply(selectedInternship.id)
+                    setSelectedInternship(null)
                   }}
-                  disabled={Boolean(selectedInternship.application_status) || (!selectedCanApply && selectedMissingRequiredSkills.length === 0)}
-                  className="rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-6 py-2 text-sm font-semibold text-white shadow-[0_25px_60px_rgba(99,102,241,0.45)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-6 py-2 text-sm font-semibold text-white shadow-[0_25px_60px_rgba(99,102,241,0.45)] hover:brightness-110"
                 >
-                  {selectedInternship.application_status ? 'Applied' : selectedCanApply ? 'Apply now' : 'Verify skills'}
+                  Apply now
                 </button>
               </div>
             </footer>

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import AdminNotification, ApplicantProfile, RecruiterProfile, Internship, Application
+from .models import ApplicantProfile, RecruiterProfile, Internship, Application
 
 @admin.register(ApplicantProfile)
 class ApplicantProfileAdmin(admin.ModelAdmin):
@@ -9,15 +9,9 @@ class ApplicantProfileAdmin(admin.ModelAdmin):
 
 @admin.register(RecruiterProfile)
 class RecruiterProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'company_name', 'status', 'work_email_verified', 'verified_by_admin', 'verified_at')
+    list_display = ('user', 'company_name', 'is_verified')
     search_fields = ('user__email', 'company_name')
-    list_filter = ('status', 'work_email_verified', 'verified_by_admin')
-
-@admin.register(AdminNotification)
-class AdminNotificationAdmin(admin.ModelAdmin):
-    list_display = ('type', 'priority', 'message', 'recruiter', 'is_read', 'created_at')
-    search_fields = ('message', 'recruiter__company_name', 'recruiter__user__email')
-    list_filter = ('type', 'priority', 'is_read', 'created_at')
+    list_filter = ('is_verified',)
 
 @admin.register(Internship)
 class InternshipAdmin(admin.ModelAdmin):

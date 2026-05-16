@@ -3,21 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import FeedbackToast from '../components/FeedbackToast'
 import { useAuth } from '../context/AuthContext'
-import API from '../services/api'
 
 const parseParams = (search) => {
   const params = new URLSearchParams(search)
   return {
     userId: params.get('userId'),
     email: params.get('email'),
-    mode: params.get('mode'),
   }
 }
 
 export default function VerifyOtp() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { verifyLoginOtp, loginWithTokens } = useAuth()
+  const { verifyLoginOtp } = useAuth()
   const [code, setCode] = useState('')
   const [feedback, setFeedback] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,90 +25,30 @@ export default function VerifyOtp() {
     return {
       userId: state.userId || params.userId || '',
       email: state.email || params.email || '',
-      mode: state.mode || params.mode || 'login-2fa',
-      password: state.password || '',
     }
   })
-  const isRecruiterEmailOtp = userMeta.mode === 'recruiter-email'
 
   useEffect(() => {
-    if (!isRecruiterEmailOtp && !userMeta.userId) {
+    if (!userMeta.userId) {
       navigate('/login')
     }
-    if (isRecruiterEmailOtp && (!userMeta.email || !userMeta.password)) {
-      navigate('/login')
-    }
-  }, [isRecruiterEmailOtp, userMeta.email, userMeta.password, userMeta.userId, navigate])
-
-  useEffect(() => {
-    if (!isRecruiterEmailOtp || !userMeta.email || !userMeta.password) return
-    let cancelled = false
-    ;(async () => {
-      try {
-        await API.post('/api/recruiters/send-otp/', {
-          email: userMeta.email,
-          password: userMeta.password,
-        })
-        if (!cancelled) {
-          setFeedback({ type: 'info', message: 'A recruiter activation OTP was sent to your work email.' })
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setFeedback({
-            type: 'error',
-            message: error.response?.data?.message || error.response?.data?.detail || 'Unable to send recruiter activation OTP.',
-          })
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [isRecruiterEmailOtp, userMeta.email, userMeta.password])
+  }, [userMeta.userId, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!isRecruiterEmailOtp && !userMeta.userId) return
+    if (!userMeta.userId) return
     if (code.trim().length < 6) {
-      setFeedback({ type: 'error', message: isRecruiterEmailOtp ? 'Enter the 6-digit code from your work email.' : 'Enter the 6-digit code from your authenticator app.' })
+      setFeedback({ type: 'error', message: 'Enter the 6-digit code from your authenticator app.' })
       return
     }
     setIsSubmitting(true)
-    if (isRecruiterEmailOtp) {
-      try {
-        const response = await API.post('/api/recruiters/verify-otp/', {
-          email: userMeta.email,
-          password: userMeta.password,
-          otp: code,
-        })
-        const { access, refresh } = response.data
-        if (access && refresh) {
-          const sessionResult = await loginWithTokens(access, refresh)
-          if (!sessionResult.success) {
-            setFeedback({ type: 'error', message: sessionResult.error || 'Unable to complete recruiter login.' })
-            return
-          }
-          setFeedback({ type: 'success', message: 'Work email verified. Redirecting to recruiter portal...' })
-          navigate('/recruiter')
-        } else {
-          setFeedback({ type: 'success', message: 'Work email verified. You can now sign in as a recruiter.' })
-          setTimeout(() => navigate('/login'), 900)
-        }
-      } catch (error) {
-        setFeedback({ type: 'error', message: error.response?.data?.detail || 'Invalid code. Try again.' })
-      } finally {
-        setIsSubmitting(false)
-      }
+    const result = await verifyLoginOtp(userMeta.userId, code)
+    setIsSubmitting(false)
+    if (!result.success) {
+      setFeedback({ type: 'error', message: result.error || 'Invalid code. Try again.' })
       return
-    } else {
-      const result = await verifyLoginOtp(userMeta.userId, code)
-      setIsSubmitting(false)
-      if (!result.success) {
-        setFeedback({ type: 'error', message: result.error || 'Invalid code. Try again.' })
-        return
-      }
-      setFeedback({ type: 'success', message: 'Secure sign-in complete. Redirecting...' })
     }
+    setFeedback({ type: 'success', message: 'Secure sign-in complete. Redirecting...' })
   }
 
   return (
@@ -118,12 +56,11 @@ export default function VerifyOtp() {
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
       <div className="mx-auto w-full max-w-md rounded-[36px] border border-white/10 bg-gradient-to-b from-[#0b1024] to-[#050713] p-10 shadow-[0_45px_120px_rgba(2,4,18,0.8)]">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 text-center">
-          <p className="text-sm uppercase tracking-[0.4em] text-indigo-300">{isRecruiterEmailOtp ? 'Recruiter Activation' : 'Two-Factor Challenge'}</p>
+          <p className="text-sm uppercase tracking-[0.4em] text-indigo-300">Two-Factor Challenge</p>
           <h1 className="text-3xl font-semibold">Enter Verification Code</h1>
           <p className="text-sm text-white/70">
-            {isRecruiterEmailOtp
-              ? `Admin approved ${userMeta.email}. Enter the 6-digit OTP sent to your work email.`
-              : `${userMeta.email ? `We detected 2FA on ${userMeta.email}.` : 'Open your authenticator app.'} Enter the 6-digit code to finish signing in.`}
+            {userMeta.email ? `We detected 2FA on ${userMeta.email}.` : 'Open your authenticator app.'} Enter the 6-digit code to finish
+            signing in.
           </p>
         </motion.div>
 
@@ -144,7 +81,7 @@ export default function VerifyOtp() {
             disabled={isSubmitting}
             className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_25px_60px_rgba(99,102,241,0.45)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? 'Verifying...' : isRecruiterEmailOtp ? 'Activate Recruiter Account' : 'Verify & Continue'}
+            {isSubmitting ? 'Verifying...' : 'Verify & Continue'}
           </button>
           <button
             type="button"

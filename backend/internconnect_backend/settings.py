@@ -48,7 +48,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Local
-    'users.apps.UsersConfig',
+    'users',
     'core',
     'assessments',
 ]
@@ -146,9 +146,6 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -167,7 +164,7 @@ REST_FRAMEWORK = {
 
 from datetime import timedelta
 SIMPLE_JWT = {
-    'AUTH_HEADER_TYPES': ('JWT', 'Bearer'),
+    'AUTH_HEADER_TYPES': ('JWT',),
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
@@ -188,25 +185,12 @@ DJOSER = {
     'PASSWORD_RESET_SHOW_EMAIL_NOT_FOUND': False,
     'SERIALIZERS': {
         'user_create': 'users.serializers.UserCreateSerializer',
-        'user_create_password_retype': 'users.serializers.UserCreateSerializer',
         'user': 'users.serializers.UserSerializer',
         'current_user': 'users.serializers.UserSerializer',
     },
 }
 
 CORS_ALLOW_ALL_ORIGINS = True  # For dev only
-
-EMAIL_BACKEND = os.getenv(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend' if os.getenv('EMAIL_HOST') else 'django.core.mail.backends.console.EmailBackend',
-)
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@internconnect.local')
-ALLOWED_COLLEGE_EMAIL_DOMAINS = os.getenv('ALLOWED_COLLEGE_EMAIL_DOMAINS', 'lpu.in')
 
 FRONTEND_LOGIN_URL = os.getenv('FRONTEND_LOGIN_URL', f'{FRONTEND_BASE_URL}/login')
 SOCIAL_REDIRECT_WHITELIST = [uri.strip() for uri in os.getenv('SOCIAL_REDIRECT_WHITELIST', FRONTEND_LOGIN_URL).split(',')]
@@ -221,7 +205,3 @@ GITHUB_REDIRECT_URI = os.getenv('GITHUB_REDIRECT_URI', 'http://localhost:8000/au
 
 RECAPTCHA_SITE_KEY = os.getenv('RECAPTCHA_SITE_KEY', '6LdJKvgrAAAAALtqDBLwM9NndI1qPBXOaPLSd6_w')
 RECAPTCHA_SECRET_KEY = os.getenv('RECAPTCHA_SECRET_KEY', '6LdJKvgrAAAAAG-W-6tpzKFbTOGaZJjCjlWLQl4t')
-
-# Media files (Resume uploads, profile images)
-MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
-MEDIA_ROOT = os.path.join(BASE_DIR, os.getenv('MEDIA_ROOT', 'media'))

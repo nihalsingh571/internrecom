@@ -5,8 +5,7 @@ import pyotp
 import qrcode
 import requests
 from django.conf import settings
-from django.contrib.auth import authenticate, get_user_model, password_validation
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.contrib.auth import authenticate, get_user_model
 from django.core import signing
 from django.http import HttpResponseRedirect
 from django.utils.crypto import get_random_string
@@ -17,8 +16,6 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.views import TokenObtainPairView
 from urllib.parse import urlencode
 
 from .serializers import AdminUserSerializer
@@ -52,87 +49,6 @@ def _redirect_with_error(destination: str, error_code: str):
 def _create_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return str(refresh.access_token), str(refresh)
-
-
-def _resolve_login_email(email: str) -> str:
-    normalized = (email or '').strip()
-    if not normalized:
-        return ''
-    matched = User.objects.filter(email__iexact=normalized).values_list('email', flat=True).first()
-    return matched or normalized.lower()
-
-
-def _recruiter_login_block_response(user):
-    if user.role != User.Role.RECRUITER:
-        return None
-    from core.models import RecruiterProfile
-    recruiter_profile, _ = RecruiterProfile.objects.get_or_create(
-        user=user,
-        defaults={
-            'company_name': user.first_name or user.email,
-            'company_website': '',
-            'status': RecruiterProfile.STATUS_PENDING_ADMIN_REVIEW,
-            'work_email_verified': False,
-            'is_verified': False,
-        },
-    )
-    print(user.role)
-    print(recruiter_profile.status)
-    print(recruiter_profile.work_email_verified)
-    print(recruiter_profile.status == RecruiterProfile.STATUS_PENDING_ADMIN_REVIEW)
-
-    if recruiter_profile.status == RecruiterProfile.STATUS_PENDING_ADMIN_REVIEW:
-        return {
-            'success': False,
-            'type': 'PENDING_ADMIN_APPROVAL',
-            'message': 'Your recruiter account is awaiting admin verification.',
-            'detail': 'Your recruiter account is awaiting admin verification.',
-        }
-    if recruiter_profile.status == RecruiterProfile.STATUS_APPROVED_PENDING_EMAIL_VERIFICATION:
-        return {
-            'success': False,
-            'type': 'EMAIL_VERIFICATION_REQUIRED',
-            'message': 'Verify your work email to activate recruiter access.',
-            'detail': 'Verify your work email to activate recruiter access.',
-        }
-    if recruiter_profile.status == RecruiterProfile.STATUS_REJECTED:
-        return {
-            'success': False,
-            'type': 'REJECTED',
-            'message': 'Your recruiter account has been rejected.',
-            'detail': 'Your recruiter account has been rejected.',
-        }
-    if recruiter_profile.status == RecruiterProfile.STATUS_SUSPENDED or not user.is_active:
-        return {
-            'success': False,
-            'type': 'SUSPENDED',
-            'message': 'Your recruiter account is suspended.',
-            'detail': 'Your recruiter account is suspended.',
-        }
-    if recruiter_profile.status != RecruiterProfile.STATUS_ACTIVE or not recruiter_profile.work_email_verified:
-        return {
-            'success': False,
-            'type': 'EMAIL_VERIFICATION_REQUIRED',
-            'message': 'Verify your work email to activate recruiter access.',
-            'detail': 'Verify your work email to activate recruiter access.',
-        }
-    return None
-
-
-class RecruiterAwareTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        username_field = self.username_field
-        if attrs.get(username_field):
-            attrs[username_field] = _resolve_login_email(attrs[username_field])
-        data = super().validate(attrs)
-        blocked = _recruiter_login_block_response(self.user)
-        if blocked:
-            raise ValidationError(blocked)
-        return data
-
-
-class RecruiterAwareTokenObtainPairView(TokenObtainPairView):
-    serializer_class = RecruiterAwareTokenObtainPairSerializer
 
 
 def _verify_recaptcha(token: str, remote_ip: str | None = None):
@@ -436,7 +352,7 @@ class RecaptchaLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = _resolve_login_email(request.data.get('email') or '')
+        email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password') or ''
         token = request.data.get('recaptchaToken')
 
@@ -456,86 +372,41 @@ class RecaptchaLoginView(APIView):
         if not user:
             return Response({'detail': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user.role == User.Role.RECRUITER:
-            blocked = _recruiter_login_block_response(user)
-            if blocked:
-                return Response(blocked, status=status.HTTP_403_FORBIDDEN)
-
-            access_jwt, refresh_jwt = _create_tokens_for_user(user)
-            return Response({'access': access_jwt, 'refresh': refresh_jwt}, status=status.HTTP_200_OK)
-
-        # Check if 2FA is enforced for admins only
+        # Check if 2FA is enforced for admins and recruiters
         from core.models import PlatformSettings
         platform_settings = PlatformSettings.get_settings()
         requires_2fa = (
             platform_settings.enforce_2fa_for_admins_recruiters
-            and user.role == User.Role.ADMIN
+            and user.role in [User.Role.ADMIN, User.Role.RECRUITER]
         )
 
-        # If 2FA is required but not configured for admins:
+        # If 2FA is required but not configured:
         # - Admins: allow login but inform them to configure 2FA or turn enforcement off
+        # - Recruiters: block login until they set up 2FA
         if requires_2fa and (not user.two_factor_enabled or not user.two_factor_secret):
-            access_jwt, refresh_jwt = _create_tokens_for_user(user)
+            if user.role == User.Role.ADMIN:
+                access_jwt, refresh_jwt = _create_tokens_for_user(user)
+                return Response(
+                    {
+                        'access': access_jwt,
+                        'refresh': refresh_jwt,
+                        'two_factor_setup_required': True,
+                        'detail': 'Two-factor authentication is required for admins. Please enable it under Platform Settings.',
+                    },
+                    status=status.HTTP_200_OK,
+                )
             return Response(
                 {
-                    'access': access_jwt,
-                    'refresh': refresh_jwt,
-                    'two_factor_setup_required': True,
-                    'detail': 'Two-factor authentication is required for admins. Please enable it under Platform Settings.',
+                    'detail': 'Two-factor authentication is required. Please set it up before logging in.',
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         if user.two_factor_enabled:
             return Response({'2fa_required': True, 'user_id': user.id}, status=status.HTTP_200_OK)
 
         access_jwt, refresh_jwt = _create_tokens_for_user(user)
-        response = {'access': access_jwt, 'refresh': refresh_jwt}
-        return Response(response, status=status.HTTP_200_OK)
-
-
-class ChangePasswordView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request):
-        user = request.user
-        print('Change password req.user:', {'id': user.id, 'email': user.email, 'role': user.role})
-        print('Change password req.body:', {key: '***' if 'Password' in key else value for key, value in request.data.items()})
-
-        if user.role not in [User.Role.APPLICANT, User.Role.RECRUITER]:
-            return Response({'success': False, 'message': 'You are not allowed to change password here.'}, status=status.HTTP_403_FORBIDDEN)
-
-        current_password = request.data.get('currentPassword') or ''
-        new_password = request.data.get('newPassword') or ''
-        confirm_password = request.data.get('confirmPassword') or ''
-
-        if not current_password or not new_password or not confirm_password:
-            return Response({'success': False, 'message': 'All password fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not user.check_password(current_password):
-            return Response({'success': False, 'message': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if len(new_password) < 8:
-            return Response({'success': False, 'message': 'New password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if new_password != confirm_password:
-            return Response({'success': False, 'message': 'New password and confirmation do not match.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if user.check_password(new_password):
-            return Response({'success': False, 'message': 'New password must be different from your current password.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            password_validation.validate_password(new_password, user=user)
-        except DjangoValidationError as exc:
-            return Response({'success': False, 'message': ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            user.set_password(new_password)
-            user.save(update_fields=['password'])
-        except Exception:
-            return Response({'success': False, 'message': 'Unable to update password right now.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        return Response({'success': True, 'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
+        return Response({'access': access_jwt, 'refresh': refresh_jwt}, status=status.HTTP_200_OK)
 
 
 class EnableTwoFactorView(APIView):

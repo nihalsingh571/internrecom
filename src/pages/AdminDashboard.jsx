@@ -62,8 +62,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [studentProfiles, setStudentProfiles] = useState([])
   const [recruiterProfiles, setRecruiterProfiles] = useState([])
-  const [adminNotifications, setAdminNotifications] = useState([])
-  const [adminNotificationSummary, setAdminNotificationSummary] = useState(null)
   const [internshipList, setInternshipList] = useState([])
   const [applications, setApplications] = useState([])
   const [assessmentAttempts, setAssessmentAttempts] = useState([])
@@ -124,11 +122,7 @@ export default function AdminDashboard() {
 
   const verifiedStudents = useMemo(() => studentProfiles.filter((profile) => (profile.vsps_score ?? 0) > 0), [studentProfiles])
   const pendingApplications = useMemo(() => applications.filter((app) => app.status === 'PENDING').length, [applications])
-  const activeRecruiters = useMemo(() => recruiterProfiles.filter((rec) => rec.status === 'active' || rec.is_verified).length, [recruiterProfiles])
-  const pendingRecruiterApprovals = useMemo(
-    () => recruiterProfiles.filter((rec) => rec.status === 'pending_admin_review').length,
-    [recruiterProfiles]
-  )
+  const activeRecruiters = useMemo(() => recruiterProfiles.filter((rec) => rec.is_verified).length, [recruiterProfiles])
 
   useEffect(() => {
     if (user) {
@@ -155,12 +149,12 @@ export default function AdminDashboard() {
     return [
       { title: 'Total Users', value: totalUsers.toLocaleString('en-US'), change: `${totalStudents} students`, icon: Users, glow: 'from-indigo-500/40 to-purple-500/20' },
       { title: 'Total Students', value: totalStudents.toLocaleString('en-US'), change: `${totalAssessments} verified`, icon: GraduationCap, glow: 'from-blue-500/40 to-cyan-500/20' },
-      { title: 'Total Recruiters', value: totalRecruiters.toLocaleString('en-US'), change: `${activeRecruiters} verified · ${pendingRecruiterApprovals} awaiting approval`, icon: Building2, glow: 'from-fuchsia-500/40 to-indigo-500/20' },
+      { title: 'Total Recruiters', value: totalRecruiters.toLocaleString('en-US'), change: `${activeRecruiters} verified`, icon: Building2, glow: 'from-fuchsia-500/40 to-indigo-500/20' },
       { title: 'Total Internships', value: totalInternships.toLocaleString('en-US'), change: `${avgInternshipsPerRecruiter} per recruiter`, icon: Briefcase, glow: 'from-purple-500/40 to-blue-500/20' },
       { title: 'Total Applications', value: totalApplications.toLocaleString('en-US'), change: `${pendingApplications} pending`, icon: ClipboardList, glow: 'from-emerald-500/40 to-teal-500/20' },
       { title: 'Assessments Verified', value: totalAssessments.toLocaleString('en-US'), change: `${(avgVsps * 100).toFixed(0)} avg VSPS`, icon: Activity, glow: 'from-pink-500/40 to-indigo-500/20' },
     ]
-  }, [studentProfiles, recruiterProfiles, internshipList, applications, verifiedStudents, activeRecruiters, pendingRecruiterApprovals, pendingApplications, users])
+  }, [studentProfiles, recruiterProfiles, internshipList, applications, verifiedStudents, activeRecruiters, pendingApplications, users])
 
   const userRows = useMemo(() => {
     const studentByEmail = new Map(studentProfiles.map((profile) => [profile.email?.toLowerCase(), profile]))
@@ -180,15 +174,7 @@ export default function AdminDashboard() {
       } else if (normalizedRole === 'Student') {
         statusLabel = studentProfile && (studentProfile.vsps_score ?? 0) > 0.05 ? 'Active' : 'Pending'
       } else if (normalizedRole === 'Recruiter') {
-        statusLabel = recruiterProfile?.status === 'active' || recruiterProfile?.is_verified
-          ? 'Active'
-          : recruiterProfile?.status === 'approved_pending_email_verification'
-            ? 'Email Verification Required'
-            : recruiterProfile?.status === 'rejected'
-              ? 'Rejected'
-              : recruiterProfile?.status === 'suspended'
-                ? 'Suspended'
-                : 'Pending Admin Review'
+        statusLabel = recruiterProfile?.is_verified ? 'Active' : 'Pending Verification'
       } else {
         statusLabel = 'Active'
       }
@@ -219,7 +205,7 @@ export default function AdminDashboard() {
       const matchesStatus =
         statusFilter === 'ALL' ||
         (statusFilter === 'ACTIVE' && normalizedStatus.startsWith('ACTIVE')) ||
-        (statusFilter === 'PENDING' && (normalizedStatus.includes('PENDING') || normalizedStatus.includes('VERIFICATION') || normalizedStatus.includes('REVIEW'))) ||
+        (statusFilter === 'PENDING' && (normalizedStatus.includes('PENDING') || normalizedStatus.includes('VERIFICATION'))) ||
         (statusFilter === 'SUSPENDED' && normalizedStatus === 'SUSPENDED')
       return matchesQuery && matchesRole && matchesStatus
     })
@@ -232,10 +218,7 @@ export default function AdminDashboard() {
       case 'Suspended':
         return 'bg-rose-400/15 text-rose-200 ring-1 ring-rose-500/40'
       case 'Pending Verification':
-      case 'Pending Admin Review':
         return 'bg-amber-400/15 text-amber-200 ring-1 ring-amber-500/40'
-      case 'Rejected':
-        return 'bg-rose-400/15 text-rose-200 ring-1 ring-rose-500/40'
       default:
         return 'bg-indigo-400/15 text-indigo-200 ring-1 ring-indigo-500/40'
     }
@@ -267,20 +250,8 @@ export default function AdminDashboard() {
         id: rec.id,
         company: rec.company_name || '—',
         recruiter: rec.email,
-        designation: rec.designation || '—',
-        description: rec.company_description || '',
-        phone: rec.phone_number || '',
-        size: rec.company_size || '',
-        industry: rec.industry || '',
-        location: rec.company_location || '',
-        workEmailVerified: rec.work_email_verified,
         internships: internshipsByRecruiter.get(rec.id) || 0,
-        verified: rec.status === 'active' || rec.is_verified,
-        status: rec.status || rec.approval_status,
-        website: rec.company_website,
-        linkedin: rec.company_linkedin || rec.linkedin,
-        signupDate: rec.signup_date,
-        raw: rec,
+        verified: rec.is_verified,
       })),
     [recruiterProfiles, internshipsByRecruiter],
   )
@@ -445,12 +416,7 @@ export default function AdminDashboard() {
           { label: 'Degree', value: (row) => row.degree },
           { label: 'Major', value: (row) => row.major },
           { label: 'Graduation Year', value: (row) => row.graduation_year },
-          { label: 'Interested Role', value: (row) => row.interested_role },
-          { label: 'Verified Skills', value: (row) => (Array.isArray(row.skills) ? row.skills.filter((skill) => typeof skill === 'object' && (skill?.status || '').toLowerCase() === 'verified').map(formatSkillLabel).join('; ') : '') },
-          { label: 'GitHub', value: (row) => row.github_link },
-          { label: 'LinkedIn', value: (row) => row.linkedin_link },
-          { label: 'Resume', value: (row) => row.resume_url || row.resume },
-          { label: 'Profile Completion', value: (row) => `${row.profile_completion_status?.percentage ?? 0}%` },
+          { label: 'Skills', value: (row) => (Array.isArray(row.skills) ? row.skills.join('; ') : '') },
           { label: 'VSPS', value: (row) => row.vsps_score },
         ]
         break
@@ -633,18 +599,12 @@ export default function AdminDashboard() {
         await API.delete(`/api/users/${row.raw.id}/`)
         setFeedback({ type: 'success', message: `${row.name} removed.` })
       } else if (action === 'verify' && row.profileType === 'recruiter' && row.profile?.id) {
-        await API.post(`/api/recruiters/${row.profile.id}/verify-company/`)
-        setFeedback({ type: 'success', message: `${row.name} company verified. OTP email verification is now available.` })
-      } else if (action === 'reject' && row.profileType === 'recruiter' && row.profile?.id) {
-        await API.post(`/api/recruiters/${row.profile.id}/reject/`)
-        setFeedback({ type: 'success', message: `${row.name} rejected.` })
-      } else if (action === 'send_otp' && row.profileType === 'recruiter' && row.profile?.id) {
-        await API.post(`/api/recruiters/${row.profile.id}/send_otp/`)
-        setFeedback({ type: 'success', message: `OTP sent to ${row.name}.` })
+        await API.patch(`/api/recruiters/${row.profile.id}/`, { is_verified: true })
+        setFeedback({ type: 'success', message: `${row.name} verified.` })
       }
       await fetchAdminData()
     } catch (error) {
-      setFeedback({ type: 'error', message: error.response?.data?.detail || 'Unable to update account. Please try again.' })
+      setFeedback({ type: 'error', message: 'Unable to update account. Please try again.' })
     } finally {
       setUserActionLoading(null)
     }
@@ -1021,14 +981,13 @@ const handleSkillAdd = async (e) => {
     try {
       const responses = await Promise.allSettled([
         API.get('/api/users/'),
-        API.get('/api/admin/students/'),
+        API.get('/api/applicants/'),
         API.get('/api/recruiters/'),
         API.get('/api/internships/'),
         API.get('/api/applications/'),
         API.get('/api/assessments/attempts/?limit=120'),
         API.get('/api/skills/'),
         API.get('/api/platform-settings/settings/'),
-        API.get('/api/admin-notifications/summary/'),
       ])
       if (signal?.aborted) return
 
@@ -1041,7 +1000,6 @@ const handleSkillAdd = async (e) => {
         attemptsRes,
         skillsRes,
         platformSettingsRes,
-        notificationSummaryRes,
       ] = responses
 
       const getData = (result) => (result.status === 'fulfilled' ? result.value.data : null)
@@ -1054,7 +1012,6 @@ const handleSkillAdd = async (e) => {
       const skillsData = getData(skillsRes)
       const attemptsData = getData(attemptsRes)
       const platformSettingsData = getData(platformSettingsRes)
-      const notificationSummaryData = getData(notificationSummaryRes)
 
       setUsers(usersData ?? [])
       setStudentProfiles(applicantsData ?? [])
@@ -1063,8 +1020,6 @@ const handleSkillAdd = async (e) => {
       setApplications(applicationsData ?? [])
       setSkills(skillsData ?? [])
       setAssessmentAttempts(attemptsData ?? [])
-      setAdminNotificationSummary(notificationSummaryData)
-      setAdminNotifications(notificationSummaryData?.notifications ?? [])
 
       if (platformSettingsData) {
         setEnforce2FA(platformSettingsData.enforce_2fa_for_admins_recruiters ?? true)
@@ -1085,8 +1040,6 @@ const handleSkillAdd = async (e) => {
       setInternshipList([])
       setApplications([])
       setSkills([])
-      setAdminNotifications([])
-      setAdminNotificationSummary(null)
     } finally {
       if (!signal?.aborted) {
         setLoading(false)
@@ -1101,16 +1054,6 @@ const handleSkillAdd = async (e) => {
     fetchAdminData({ signal: controller.signal })
     return () => controller.abort()
   }, [fetchAdminData])
-
-  useEffect(() => {
-    if (!user || user.role !== 'ADMIN' || loading) return
-    const pendingVerifiedRecruiters = recruiterProfiles.filter((rec) => rec.status === 'pending_admin_review')
-    if (!pendingVerifiedRecruiters.length) return
-    setFeedback({
-      type: 'warning',
-      message: `Urgent: ${pendingVerifiedRecruiters.length} recruiter account${pendingVerifiedRecruiters.length === 1 ? '' : 's'} require verification.`,
-    })
-  }, [user, loading, recruiterProfiles])
 
   useEffect(() => {
     if (skills.length > 0) {
@@ -1145,41 +1088,6 @@ const handleSkillAdd = async (e) => {
       ))}
     </section>
   )
-
-  const renderRecruiterAlerts = () => {
-    const pending = recruiterProfiles.filter((rec) => rec.status === 'pending_admin_review')
-    if (!pending.length) return null
-    return (
-      <section className="mt-10 rounded-[32px] border border-amber-400/30 bg-amber-500/10 p-6 shadow-[0_30px_100px_rgba(245,158,11,0.18)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-amber-200">High Priority</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">
-              {adminNotificationSummary?.urgent_message || `${pending.length} recruiter accounts require urgent verification.`}
-            </h3>
-            <p className="mt-1 text-sm text-amber-100/70">Review company website, LinkedIn, and recruiter profile before releasing OTP activation.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveSection('Recruiters')}
-            className="rounded-2xl border border-amber-200/30 px-5 py-3 text-sm font-semibold text-amber-100 hover:border-amber-100"
-          >
-            Open Verification Queue
-          </button>
-        </div>
-        {adminNotifications.length > 0 ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {adminNotifications.slice(0, 4).map((notification) => (
-              <div key={notification.id} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80">
-                <span className="mr-2 rounded-full bg-rose-500/20 px-2 py-1 text-[10px] uppercase tracking-[0.25em] text-rose-100">{notification.priority}</span>
-                {notification.message}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
-    )
-  }
 
   const renderGrowthPanels = () => (
     <section className="mt-10 grid gap-6 md:grid-cols-2">
@@ -1306,7 +1214,7 @@ const handleSkillAdd = async (e) => {
               <tbody>
                 {rows.map((row) => {
                   const isSuspended = row.status === 'Suspended'
-                  const needsVerification = row.status === 'Pending Admin Review' && row.profileType === 'recruiter'
+                  const needsVerification = row.status === 'Pending Verification' && row.profileType === 'recruiter'
                   const suspendKey = `${row.raw.is_active ? 'suspend' : 'activate'}-${row.raw.id}`
                   const deleteKey = `delete-${row.raw.id}`
                   const promoteKey = `promote-${row.raw.id}`
@@ -1349,18 +1257,8 @@ const handleSkillAdd = async (e) => {
                             className="mr-3 hover:text-emerald-300"
                             onClick={() => handleUserAction('verify', row)}
                             disabled={userActionLoading === verifyKey}
-                            title="Verify company and release recruiter work-email OTP"
                           >
-                            {userActionLoading === verifyKey ? 'Verifying…' : 'Verify Company'}
-                          </button>
-                        )}
-                        {row.profileType === 'recruiter' && ['Pending Admin Review', 'Email Verification Required'].includes(row.status) && (
-                          <button
-                            className="mr-3 hover:text-rose-300"
-                            onClick={() => handleUserAction('reject', row)}
-                            disabled={userActionLoading === `reject-${row.raw.id}`}
-                          >
-                            {userActionLoading === `reject-${row.raw.id}` ? 'Rejecting…' : 'Reject'}
+                            {userActionLoading === verifyKey ? 'Verifying…' : 'Verify'}
                           </button>
                         )}
                         <button
@@ -1399,68 +1297,38 @@ const handleSkillAdd = async (e) => {
       {studentTableRows.length === 0 ? (
         <p className="py-4 text-center text-sm text-white/60">No applicant profiles available yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-white/10">
-        <table className="min-w-[1100px] w-full text-sm">
+        <table className="w-full text-sm">
           <thead className="text-xs uppercase tracking-[0.3em] text-white/40">
             <tr>
               <th className="pb-3 text-left">Name</th>
               <th className="pb-3 text-left">University</th>
-              <th className="pb-3 text-left">Degree</th>
-              <th className="pb-3 text-left">Grad Year</th>
               <th className="pb-3 text-left">Skills</th>
-              <th className="pb-3 text-left">Role</th>
-              <th className="pb-3 text-left">Links</th>
-              <th className="pb-3 text-left">Resume</th>
-              <th className="pb-3 text-left">Complete</th>
               <th className="pb-3 text-left">VSPS</th>
+              <th className="pb-3 text-left">Accuracy</th>
             </tr>
           </thead>
           <tbody>
             {studentTableRows.map((student) => {
-              const verifiedSkillList = Array.isArray(student.skills)
+              const skillList = Array.isArray(student.skills)
                 ? student.skills
-                    .filter((skill) => typeof skill === 'object' && (skill?.status || '').toLowerCase() === 'verified')
-                    .map((skill) => skill?.name || skill?.label)
+                    .map((skill) => (typeof skill === 'string' ? skill : skill?.name))
                     .filter(Boolean)
                     .join(', ')
                 : ''
               const vsps = Math.round((student.vsps_score ?? 0) * 100)
-              const completion = student.profile_completion_status?.percentage ?? 0
+              const accuracy = Math.round((student.assessment_accuracy ?? 0) * 100)
               return (
                 <tr key={student.id} className="border-b border-white/5">
                   <td className="py-3">{student.first_name || student.last_name ? `${student.first_name || ''} ${student.last_name || ''}` : student.email}</td>
                   <td className="py-3 text-white/60">{student.college || '—'}</td>
-                  <td className="py-3 text-white/60">{student.degree || '—'}</td>
-                  <td className="py-3 text-white/60">{student.graduation_year || '—'}</td>
-                  <td className="max-w-[220px] py-3 pr-4 text-white/60">
-                    <div className="flex flex-wrap gap-1">
-                      {verifiedSkillList
-                        ? verifiedSkillList.split(', ').slice(0, 6).map((skill) => (
-                            <span key={`${student.id}-${skill}`} className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200">
-                              {skill}
-                            </span>
-                          ))
-                        : <span className="text-white/40">No verified skills</span>}
-                    </div>
-                  </td>
-                  <td className="py-3 text-white/60">{student.interested_role || '—'}</td>
-                  <td className="py-3 text-white/60">
-                    <div className="flex flex-col gap-1">
-                      {student.github_link ? <a href={student.github_link} target="_blank" rel="noreferrer" className="text-indigo-200 underline">GitHub</a> : <span>GitHub —</span>}
-                      {student.linkedin_link ? <a href={student.linkedin_link} target="_blank" rel="noreferrer" className="text-indigo-200 underline">LinkedIn</a> : <span>LinkedIn —</span>}
-                    </div>
-                  </td>
-                  <td className="py-3 text-white/60">
-                    {student.resume_url ? <a href={student.resume_url} target="_blank" rel="noreferrer" className="text-indigo-200 underline">Resume</a> : '—'}
-                  </td>
-                  <td className="py-3 text-white/60">{completion}%</td>
+                  <td className="py-3 text-white/60">{skillList || 'No skills'}</td>
                   <td className="py-3 font-semibold text-indigo-200">{vsps}%</td>
+                  <td className="py-3 text-white/60">{accuracy}%</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-        </div>
       )}
     </div>
   )
@@ -1482,117 +1350,28 @@ const handleSkillAdd = async (e) => {
       {recruiterDisplay.length === 0 ? (
         <p className="py-6 text-center text-sm text-white/60">No recruiters found.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[1000px] w-full text-sm">
-            <thead className="text-xs uppercase tracking-[0.3em] text-white/40">
-              <tr>
-                <th className="pb-3 text-left">Company</th>
-                <th className="pb-3 text-left">Contact</th>
-                <th className="pb-3 text-left">Work Email</th>
-                <th className="pb-3 text-left">Company Proof</th>
-                <th className="pb-3 text-left">Signup</th>
-                <th className="pb-3 text-left">Internships</th>
-                <th className="pb-3 text-left">Verification</th>
-                <th className="pb-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recruiterDisplay.map((rec) => (
-                <tr key={rec.id} className="border-b border-white/5">
-                  <td className="py-3">{rec.company}</td>
-                  <td className="py-3 text-white/60">
-                    <div>{rec.recruiter}</div>
-                    <div className="text-xs text-white/40">{rec.designation || '—'}</div>
-                    <div className="text-xs text-white/40">{rec.phone || 'Phone —'}</div>
-                  </td>
-                  <td className="py-3">
-                    <span className={`rounded-full px-2 py-1 text-xs ${rec.workEmailVerified ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
-                      {rec.workEmailVerified ? 'Verified' : 'Pending'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-white/60">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {rec.website ? <a href={rec.website} target="_blank" rel="noreferrer" className="text-indigo-200 underline">Website</a> : <span>Website —</span>}
-                        {rec.linkedin ? <a href={rec.linkedin} target="_blank" rel="noreferrer" className="text-indigo-200 underline">LinkedIn</a> : <span>LinkedIn —</span>}
-                      </div>
-                      <span className="text-white/40">{rec.industry || 'Industry —'} · {rec.size || 'Size —'}</span>
-                      <span className="text-white/40">{rec.location || 'Location —'}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-white/60">{formatDisplayDate(rec.signupDate)}</td>
-                  <td className="py-3 text-white/60">{rec.internships}</td>
-                  <td className="py-3">
-                    <span className={`rounded-full px-2 py-1 text-xs ${rec.verified ? 'bg-emerald-500/20 text-emerald-300' : rec.status === 'rejected' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}`}>
-                      {rec.verified ? 'Active' : rec.status === 'approved_pending_email_verification' ? 'OTP Pending' : rec.status === 'rejected' ? 'Rejected' : 'Pending Admin Review'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedUser({
-                        id: `REC-${rec.id}`,
-                        name: rec.company,
-                        email: rec.recruiter,
-                        role: 'Recruiter',
-                        status: rec.verified ? 'Active' : rec.status === 'approved_pending_email_verification' ? 'Email Verification Required' : rec.status === 'rejected' ? 'Rejected' : 'Pending Admin Review',
-                        raw: { ...rec.raw, id: `recruiter-${rec.id}` },
-                        profileType: 'recruiter',
-                        profile: rec.raw,
-                      })}
-                      className="mr-3 font-semibold text-indigo-200 hover:text-white"
-                    >
-                      View Details
-                    </button>
-                  {rec.status === 'pending_admin_review' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('verify', { name: rec.company, raw: { id: `recruiter-${rec.id}` }, profileType: 'recruiter', profile: { id: rec.id } })}
-                        disabled={userActionLoading === `verify-recruiter-${rec.id}`}
-                        className="mr-3 font-semibold text-emerald-200 hover:text-emerald-100 disabled:opacity-40"
-                      >
-                        {userActionLoading === `verify-recruiter-${rec.id}` ? 'Verifying…' : 'Verify Company'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('reject', { name: rec.company, raw: { id: `recruiter-${rec.id}` }, profileType: 'recruiter', profile: { id: rec.id } })}
-                        disabled={userActionLoading === `reject-recruiter-${rec.id}`}
-                        className="font-semibold text-rose-200 hover:text-rose-100 disabled:opacity-40"
-                      >
-                        {userActionLoading === `reject-recruiter-${rec.id}` ? 'Rejecting…' : 'Reject'}
-                      </button>
-                    </>
-                  ) : rec.status === 'approved_pending_email_verification' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('send_otp', { name: rec.company, raw: { id: `recruiter-${rec.id}` }, profileType: 'recruiter', profile: { id: rec.id } })}
-                        disabled={userActionLoading === `send_otp-recruiter-${rec.id}`}
-                        className="mr-3 font-semibold text-blue-200 hover:text-blue-100 disabled:opacity-40"
-                      >
-                        {userActionLoading === `send_otp-recruiter-${rec.id}` ? 'Sending…' : 'Send OTP'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('reject', { name: rec.company, raw: { id: `recruiter-${rec.id}` }, profileType: 'recruiter', profile: { id: rec.id } })}
-                        disabled={userActionLoading === `reject-recruiter-${rec.id}`}
-                        className="font-semibold text-rose-200 hover:text-rose-100 disabled:opacity-40"
-                      >
-                        {userActionLoading === `reject-recruiter-${rec.id}` ? 'Rejecting…' : 'Reject'}
-                      </button>
-                    </>
-                  ) : rec.verified ? (
-                    <span className="text-white/35">Approved</span>
-                  ) : (
-                    <span className="text-white/35">Awaiting OTP</span>
-                  )}
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase tracking-[0.3em] text-white/40">
+            <tr>
+              <th className="pb-3 text-left">Company</th>
+              <th className="pb-3 text-left">Contact</th>
+              <th className="pb-3 text-left">Internships</th>
+              <th className="pb-3 text-left">Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recruiterDisplay.map((rec) => (
+              <tr key={rec.id} className="border-b border-white/5">
+                <td className="py-3">{rec.company}</td>
+                <td className="py-3 text-white/60">{rec.recruiter}</td>
+                <td className="py-3 text-white/60">{rec.internships}</td>
+                <td className="py-3">
+                  <span className={`rounded-full px-2 py-1 text-xs ${rec.verified ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>{rec.verified ? 'Verified' : 'Pending'}</span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        </div>
       )}
     </div>
   )
@@ -2304,7 +2083,6 @@ const handleSkillAdd = async (e) => {
         return (
           <>
             {renderMetricGrid()}
-            {renderRecruiterAlerts()}
             {renderGrowthPanels()}
             <section className="mt-10 grid gap-6 lg:grid-cols-2">
               {renderUserManagement()}
@@ -2344,7 +2122,6 @@ const handleSkillAdd = async (e) => {
         return (
           <>
             {renderMetricGrid()}
-            {renderRecruiterAlerts()}
             <section className="mt-10 space-y-6">{renderRecruiterPipeline()}</section>
           </>
         )
@@ -2603,11 +2380,10 @@ const handleSkillAdd = async (e) => {
                     Skills:{' '}
                     {Array.isArray(selectedUser.profile.skills) && selectedUser.profile.skills.length > 0
                       ? selectedUser.profile.skills
-                          .filter((skill) => typeof skill === 'object' && (skill?.status || '').toLowerCase() === 'verified')
-                          .map((skill) => skill?.name || skill?.label)
+                          .map((skill) => (typeof skill === 'string' ? skill : skill?.name))
                           .filter(Boolean)
-                          .join(', ') || 'No verified skills'
-                      : 'No verified skills'}
+                          .join(', ')
+                      : 'Not provided'}
                   </p>
                 </div>
               ) : null}
@@ -2615,53 +2391,8 @@ const handleSkillAdd = async (e) => {
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.3em] text-white/50">Recruiter Details</p>
                   <p className="mt-2 text-sm text-white/70">Company: {selectedUser.profile.company_name || '—'}</p>
-                  <p className="text-sm text-white/70">Recruiter: {selectedUser.profile.recruiter_name || selectedUser.name || '—'}</p>
-                  <p className="text-sm text-white/70">Designation: {selectedUser.profile.designation || '—'}</p>
-                  <p className="text-sm text-white/70">Phone: {selectedUser.profile.phone_number || '—'}</p>
-                  <p className="text-sm text-white/70">Industry: {selectedUser.profile.industry || '—'}</p>
-                  <p className="text-sm text-white/70">Company size: {selectedUser.profile.company_size || '—'}</p>
-                  <p className="text-sm text-white/70">Location: {selectedUser.profile.company_location || '—'}</p>
-                  <p className="text-sm text-white/70">Status: {selectedUser.profile.status || selectedUser.status}</p>
-                  <p className="text-sm text-white/70">Work email: {selectedUser.profile.work_email_verified ? 'Verified' : 'Pending OTP'}</p>
-                  <p className="text-sm text-white/70">Admin verified: {selectedUser.profile.verified_by_admin ? `Yes${selectedUser.profile.verified_at ? ` · ${new Date(selectedUser.profile.verified_at).toLocaleString()}` : ''}` : 'No'}</p>
-                  <p className="text-sm text-white/70">
-                    Website:{' '}
-                    {selectedUser.profile.company_website ? (
-                      <a href={selectedUser.profile.company_website} target="_blank" rel="noreferrer" className="text-indigo-200 underline">
-                        {selectedUser.profile.company_website}
-                      </a>
-                    ) : '—'}
-                  </p>
-                  <p className="text-sm text-white/70">
-                    LinkedIn:{' '}
-                    {selectedUser.profile.company_linkedin || selectedUser.profile.linkedin ? (
-                      <a href={selectedUser.profile.company_linkedin || selectedUser.profile.linkedin} target="_blank" rel="noreferrer" className="text-indigo-200 underline">
-                        {selectedUser.profile.company_linkedin || selectedUser.profile.linkedin}
-                      </a>
-                    ) : '—'}
-                  </p>
-                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Company Description</p>
-                    <p className="mt-2 text-sm text-white/70">{selectedUser.profile.company_description || 'No description provided.'}</p>
-                  </div>
-                  {selectedUser.profile.status === 'pending_admin_review' ? (
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('verify', selectedUser)}
-                        className="rounded-2xl bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30"
-                      >
-                        Verify Company
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUserAction('reject', selectedUser)}
-                        className="rounded-2xl bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/30"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  ) : null}
+                  <p className="text-sm text-white/70">Verification: {selectedUser.profile.is_verified ? 'Verified' : 'Pending'}</p>
+                  <p className="text-sm text-white/70">Website: {selectedUser.profile.company_website || '—'}</p>
                 </div>
               ) : null}
             </div>

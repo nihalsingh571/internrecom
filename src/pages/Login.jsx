@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { Github, Globe, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import API from '../services/api'
 import FeedbackToast from '../components/FeedbackToast'
 import AuthFooter from '../components/AuthFooter'
 import ForgotPasswordDialog from '../components/ForgotPasswordDialog'
@@ -39,7 +39,8 @@ const cardPositions = [
   { bottom: '6%', left: '-12%' },
 ]
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+const env = (typeof window !== 'undefined' && window.__APP_ENV__) || (typeof process !== 'undefined' ? process.env : {})
+const API_BASE_URL = env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 const socialErrorMessages = {
   google_code_missing: 'Google login was cancelled. Please try again.',
@@ -179,33 +180,6 @@ export default function Login() {
       return
     }
     if (!res.success) {
-      if (res.type === 'PENDING_ADMIN_APPROVAL') {
-        setFeedback({
-          type: 'warning',
-          message: res.message || 'Your recruiter account is awaiting admin verification.',
-        })
-        return
-      }
-      if (res.type === 'EMAIL_VERIFICATION_REQUIRED') {
-        navigate(`/verify-otp?mode=recruiter-email&email=${encodeURIComponent(email)}`, {
-          state: { mode: 'recruiter-email', email, password },
-        })
-        return
-      }
-      if (res.type === 'REJECTED') {
-        setFeedback({
-          type: 'error',
-          message: res.message || 'Your recruiter account has been rejected.',
-        })
-        return
-      }
-      if (res.type === 'SUSPENDED') {
-        setFeedback({
-          type: 'error',
-          message: res.message || 'Your recruiter account is suspended.',
-        })
-        return
-      }
       if (res.twoFactorEnforced) {
         setFeedback({
           type: 'error',
@@ -223,14 +197,7 @@ export default function Login() {
         navigate('/settings/security', { state: { fromLogin: true } })
         return
       }
-      if (res.recruiterApprovalStatus) {
-        setFeedback({
-          type: 'info',
-          message: res.detail || 'Your recruiter account is awaiting admin verification.',
-        })
-      } else {
-        setFeedback({ type: 'success', message: 'Welcome back! Redirecting you now.' })
-      }
+      setFeedback({ type: 'success', message: 'Welcome back! Redirecting you now.' })
     }
   }
 
@@ -278,8 +245,11 @@ export default function Login() {
                 />
 
                 {insightCards.map((card, index) => (
-                  <div
+                  <motion.div
                     key={card.company}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 * index }}
                     className="absolute flex w-[210px] items-center justify-between gap-3 rounded-2xl bg-[#11162f]/90 px-4 py-3 text-sm shadow-[0_30px_80px_rgba(3,4,14,0.65)] ring-1 ring-white/10 backdrop-blur"
                     style={cardPositions[index]}
                   >
@@ -293,7 +263,7 @@ export default function Login() {
                       </div>
                     </div>
                     <span className="text-[11px] font-semibold text-white/70">{card.match}</span>
-                  </div>
+                  </motion.div>
                 ))}
 
                 <div className="absolute -bottom-10 left-1/2 w-[240px] -translate-x-1/2 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-600/40 to-fuchsia-500/40 px-5 py-3 text-center text-sm font-semibold text-white shadow-[0_30px_80px_rgba(67,56,202,0.4)]">
@@ -307,7 +277,9 @@ export default function Login() {
         </section>
 
         <section className="relative bg-[#060816] px-8 py-10 sm:px-12">
-          <div
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             className="mx-auto w-full max-w-md rounded-[32px] border border-white/5 bg-[#0a0f26]/80 p-9 shadow-[0_35px_80px_rgba(3,4,12,0.75)] backdrop-blur"
           >
             <p className="text-sm uppercase tracking-[0.4em] text-indigo-200">Welcome Back</p>
@@ -405,10 +377,8 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/90 transition"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    aria-pressed={showPassword}
-                    title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
@@ -468,7 +438,7 @@ export default function Login() {
                 </Link>
               </p>
             </form>
-          </div>
+          </motion.div>
         </section>
       </div>
       <div className="mx-auto mt-10 max-w-6xl">
